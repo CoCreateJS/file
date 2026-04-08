@@ -5,6 +5,7 @@ const realpathAsync = fs.promises.realpath;
 
 const path = require("path");
 const { pathToFileURL } = require("url");
+const readline = require('readline');
 const mimeTypes = {
 	".aac": "audio/aac",
 	".abw": "application/x-abiword",
@@ -84,22 +85,7 @@ const mimeTypes = {
 	".7z": "application/x-7z-compressed"
 };
 
-module.exports = async function file(
-	CoCreateConfig,
-	configPath,
-	match,
-	options
-) {
-	let directories = CoCreateConfig.directories;
-	let sources = CoCreateConfig.sources;
-	let configDirectoryPath = path.dirname(configPath);
-
-	if (match && !Array.isArray(match)) {
-		match = [match];
-	} else if (!match) {
-		match = [];
-	}
-
+async function loadConfig(configPath) {
 	let config = await Config(
 		{
 			organization_id: {
@@ -165,6 +151,122 @@ module.exports = async function file(
 		}
 	}
 
+	return config;
+}
+
+async function writeFiles(objects, configPath) {
+	let baseDir = process.cwd();
+	if (configPath) {
+		const projectRoot = path.dirname(configPath);
+		baseDir = path.join(projectRoot, 'src');
+		if (!fs.existsSync(baseDir)) {
+			baseDir = projectRoot;
+		}
+	}
+
+	const downloaded = [];
+	for (const obj of objects) {
+		try {
+			const objPath = obj.pathname || obj.path;
+			if (!objPath) continue;
+			
+			// Compute absolute target path relative to the computed base directory
+			const targetPath = path.resolve(baseDir, '.' + objPath);
+
+			// Handle explicitly marked directories
+			let isDirectory = obj["content-type"] === "text/directory" || obj.type === "directory" || objPath.endsWith('/');
+			
+			// If not explicitly marked, but it acts as a parent for other files in this batch, it must be a directory
+			if (!isDirectory) {
+				isDirectory = objects.some(o => {
+					let oPath = o.pathname || o.path;
+					return oPath && oPath !== objPath && (oPath.startsWith(objPath + '/') || oPath === objPath + '/');
+				});
+			}
+
+			if (isDirectory) {
+				fs.mkdirSync(targetPath, { recursive: true });
+				continue;
+			}
+			
+			// For files, ensure the parent directory is created first
+			fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+			const src = obj.src || obj.source || (obj.object && obj.object.src) || '';
+			let content = src;
+			if (!content && obj.content) content = obj.content;
+
+			if (content && typeof content === 'object' && content.type === 'Buffer' && Array.isArray(content.data)) {
+				const buf = Buffer.from(content.data);
+				fs.writeFileSync(targetPath, buf);
+				downloaded.push(targetPath);
+				continue;
+			}
+
+			if (content && typeof content === 'object' && Array.isArray(content.data)) {
+				try {
+					const buf = Buffer.from(content.data);
+					fs.writeFileSync(targetPath, buf);
+					downloaded.push(targetPath);
+					continue;
+				} catch (err) {}
+			}
+
+			if (typeof content === 'string' && content.startsWith('data:')) {
+				const base64Index = content.indexOf('base64,');
+				if (base64Index > -1) {
+					const b64 = content.slice(base64Index + 7);
+					const buf = Buffer.from(b64, 'base64');
+					fs.writeFileSync(targetPath, buf);
+					downloaded.push(targetPath);
+					continue;
+				} else {
+					const comma = content.indexOf(',');
+					if (comma > -1) {
+						const dataPart = content.slice(comma + 1);
+						try {
+							const decoded = decodeURIComponent(dataPart);
+							fs.writeFileSync(targetPath, decoded, 'utf8');
+							downloaded.push(targetPath);
+							continue;
+						} catch (err) {}
+					}
+				}
+			}
+
+			if (Buffer.isBuffer(content)) {
+				fs.writeFileSync(targetPath, content);
+				downloaded.push(targetPath);
+				continue;
+			}
+
+			fs.writeFileSync(targetPath, String(content || ''), 'utf8');
+			downloaded.push(targetPath);
+		} catch (err) {
+			console.error('Failed to write object', obj && obj._id, err);
+		}
+	}
+	return downloaded;
+}
+
+module.exports = async function file(
+	CoCreateConfig,
+	configPath,
+	match,
+	options
+) {
+	let directories = CoCreateConfig.directories;
+	let sources = CoCreateConfig.sources;
+	let configDirectoryPath = path.dirname(configPath);
+
+	if (match && !Array.isArray(match)) {
+		match = [match];
+	} else if (!match) {
+		match = [];
+	}
+
+	let config = await loadConfig(configPath);
+
 	// console.log('Uploading files...')
 
 	/**
@@ -203,42 +305,58 @@ module.exports = async function file(
 					fs.lstatSync(filePath).isDirectory();
 
 			let skip = false;
-			for (let i = 0; i < exclude.length; i++) {
-				if (filePath.includes(exclude[i])) {
+			let isExplicitMatch = false;
+			let matchSkip = false;
+
+			if (match.length > 0) {
+				matchSkip = true;
+				for (let i = 0; i < match.length; i++) {
+					if (filePath.startsWith(match[i])) {
+						matchSkip = false;
+						isExplicitMatch = true;
+						break;
+					} else if (isDirectory && match[i].startsWith(filePath)) {
+						matchSkip = "directory";
+						isExplicitMatch = true;
+						break; // File is a parent of an explicitly matched file
+					}
+				}
+				if (matchSkip === true) continue;
+			}
+
+			if (include && include.length > 0) {
+				let included = false;
+				for (let i = 0; i < include.length; i++) {
+					if (filePath.includes(include[i])) {
+						included = true;
+						break;
+					} else if (isDirectory) {
+						included = "directory";
+						break;
+					}
+				}
+				if (included === false) {
 					skip = true;
-					break;
+				} else if (included === "directory") {
+					skip = "directory";
 				}
 			}
-	
-			for (let i = 0; i < include.length; i++) {
-				if (filePath.includes(include[i])) {
-					skip = false;
-					break;
-				} else if (isDirectory) {
-					skip = "directory";
-					break;
-				} else {
-					skip = true;
-				}	
+
+			if (!skip && !isExplicitMatch && exclude && exclude.length > 0) {
+				for (let i = 0; i < exclude.length; i++) {
+					if (filePath.includes(exclude[i])) {
+						skip = true;
+						break;
+					}
+				}
+			} else if (matchSkip === "directory" && skip !== true) {
+				skip = "directory";
 			}
 
 			if (skip === true) continue;
 
 			let name = file;
 			let source = "";
-
-			for (let i = 0; i < match.length; i++) {
-				skip = true;
-				if (filePath.startsWith(match[i])) {
-					skip = false;
-					break;
-				} else if (isDirectory && match[i].startsWith(filePath)) {
-					skip = "directory";
-					break;
-				}
-			}
-
-			if (skip === true) continue;
 
 			const fileExtension = path.extname(file);
 			let mimeType = mimeTypes[fileExtension];
@@ -393,7 +511,7 @@ module.exports = async function file(
 						`To: ${pathname}`
 					);
 				}
-				if (response.error) errorLog.push(response.error);
+				if (response && response.error) errorLog.push(response.error);
 			}
 
 			if (isDirectory && pathname) {
@@ -592,8 +710,11 @@ module.exports = async function file(
 
 	async function runStore(data) {
 		try {
+			if (typeof data === "string" || (data && Array.isArray(data))) {
+				return null;
+			}
 			let response;
-			if (!data.object._id && !data.$filter) {
+			if (!data.object || (!data.object._id && !data.$filter)) {
 				response = await crud.send({
 					method: "object.create",
 					...config,
@@ -636,3 +757,143 @@ module.exports = async function file(
 		process.exit();
 	}
 };
+
+module.exports.download = async function download(CoCreateConfig, configPath, match, options) {
+	// Instead of extracting match/directory directly, we will ensure we have the config
+	let config;
+	try {
+		config = await loadConfig(configPath);
+	} catch (err) {
+		console.log(err && err.message ? err.message : err);
+		return [];
+	}
+
+	if (!config || !config.organization_id) {
+		console.log('Failed to load auth config for download.');
+		return [];
+	}
+
+	let pathArg = '';
+	if (options && options.restorePath) {
+		pathArg = options.restorePath;
+	} else if (match && typeof match === 'string') {
+		pathArg = match;
+	} else if (match && Array.isArray(match) && match.length) {
+		pathArg = match[0];
+	}
+
+	if (!pathArg) return [];
+
+	console.log(`Downloading files for: ${pathArg}`);
+
+	// normalize pathname
+	let pathname = pathArg.startsWith('/') ? pathArg : `/${pathArg}`;
+
+	// Use a regex to match the exact file or any nested files/folders starting with this path
+	let filter = {
+		method: 'object.read',
+		array: 'files',
+		limit: 10000, // Ensure we retrieve all nested files
+		$filter: {
+			query: {
+				pathname: {
+					$regex: `^${pathname}`
+				}
+			}
+		},
+		...config,
+		organization_id: config.organization_id
+	};
+
+	let response = await crud.send(filter);
+	let objects = (response && response.object && response.object.length) ? response.object : [];
+
+	if (!objects || !objects.length) {
+		console.log('No stored files found for', pathArg);
+		return [];
+	}
+
+	let downloaded = await writeFiles(objects, configPath);
+
+	if (!process.argv.includes("--watch") && !process.argv.includes("-w")) {
+		process.exit();
+	}
+
+	return downloaded;
+};
+
+module.exports.delete = async function deleteFiles(CoCreateConfig, configPath, match, options) {
+	// Load auth config
+	let config;
+	try {
+		config = await loadConfig(configPath);
+	} catch (err) {
+		console.log(err && err.message ? err.message : err);
+		return null;
+	}
+
+	if (!config || !config.organization_id) {
+		console.log('Failed to load auth config for delete.');
+		return null;
+	}
+
+	let pathArg = '';
+	if (options && options.targetPath) {
+		pathArg = options.targetPath;
+	} else if (match && typeof match === 'string') {
+		pathArg = match;
+	} else if (match && Array.isArray(match) && match.length) {
+		pathArg = match[0];
+	}
+
+	if (!pathArg) return null;
+
+
+	let pathname = pathArg.startsWith('/') ? pathArg : `/${pathArg}`;
+
+	let filter = {
+		method: 'object.delete',
+		array: 'files',
+		$filter: {
+			query: {
+				pathname: {
+					$regex: `^${pathname}`
+				}
+			}
+		},
+		...config,
+		organization_id: config.organization_id
+	};
+
+	// Interactive confirmation happens here by default. Set options.confirm = false to skip.
+	const shouldExit = !process.argv.includes("--watch") && !process.argv.includes("-w");
+	let response = null;
+	try {
+		if (!options || options.confirm !== false) {
+			console.log(`Permanently delete objects from array 'files' matching ${pathname}?`);
+
+			const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+			const answer = await new Promise((resolve) => {
+				rl.question("Type 'yes' to confirm: ", (ans) => {
+					rl.close();
+					resolve(ans && ans.trim());
+				});
+			});
+
+			if (!answer || !/^y(es)?$/i.test(answer)) {
+				console.log('Aborted delete.');
+				return null;
+			}
+		}
+
+		response = await crud.send(filter);
+		// success will be silent to avoid redundant logs
+		return response;
+	} catch (err) {
+		console.error('Delete failed for objects in array "files" matching', pathArg, err && err.message ? err.message : err);
+		return null;
+	} finally {
+		if (shouldExit) process.exit();
+	}
+};
+
