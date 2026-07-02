@@ -287,6 +287,7 @@ module.exports = async function file(
         let files = fs.readdirSync(entryPath);
         let exclude = directory.exclude || [];
         let include = directory.include || [];
+        
         for (let file of files) {
             const filePath = path.resolve(entryPath, file);
 
@@ -294,37 +295,44 @@ module.exports = async function file(
             let isSymlink = fs
                 .lstatSync(filePath)
                 .isSymbolicLink();
+                
             if (isSymlink) {
                 let symlinkPath = await realpathAsync(filePath);
                 isDirectory =
                     fs.existsSync(symlinkPath) &&
                     fs.lstatSync(symlinkPath).isDirectory();
-            } else
+            } else {
                 isDirectory =
                     fs.existsSync(filePath) &&
                     fs.lstatSync(filePath).isDirectory();
-
-            let skip = false;
-            let isExplicitMatch = false;
-            let matchSkip = false;
-
-            if (match.length > 0) {
-                matchSkip = true;
-                for (let i = 0; i < match.length; i++) {
-                    if (filePath.startsWith(match[i])) {
-                        matchSkip = false;
-                        isExplicitMatch = true;
-                        break;
-                    } else if (isDirectory && match[i].startsWith(filePath)) {
-                        matchSkip = "directory";
-                        isExplicitMatch = true;
-                        break; // File is a parent of an explicitly matched file
-                    }
-                }
-                if (matchSkip === true) continue;
             }
 
-            if (include && include.length > 0) {
+            let skip = false;
+
+            // 0. Match Logic (Watch mode filter)
+            if (typeof match !== 'undefined' && match && match.length > 0) {
+                let isMatched = false;
+                for (let i = 0; i < match.length; i++) {
+                    if (filePath.startsWith(match[i])) {
+                        // The file/directory exactly matches or is inside the matched path
+                        isMatched = true;
+                        break;
+                    } else if (isDirectory && match[i].startsWith(filePath)) {
+                        // The directory is a parent of the matched path, we must traverse it
+                        isMatched = "directory";
+                        break;
+                    }
+                }
+                
+                if (isMatched === false) {
+                    skip = true;
+                } else if (isMatched === "directory") {
+                    skip = "directory";
+                }
+            }
+
+            // 1. Strict Include Logic
+            if (skip !== true && include && include.length > 0) {
                 let included = false;
                 for (let i = 0; i < include.length; i++) {
                     if (filePath.includes(include[i])) {
@@ -335,22 +343,22 @@ module.exports = async function file(
                         break;
                     }
                 }
+                
                 if (included === false) {
                     skip = true;
-                } else if (included === "directory") {
+                } else if (included === "directory" && skip !== "directory") {
                     skip = "directory";
                 }
             }
 
-            if (!skip && !isExplicitMatch && exclude && exclude.length > 0) {
+            // 2. Strict Exclude Logic (Overrides both Match and Include)
+            if (skip !== true && exclude && exclude.length > 0) {
                 for (let i = 0; i < exclude.length; i++) {
                     if (filePath.includes(exclude[i])) {
                         skip = true;
                         break;
                     }
                 }
-            } else if (matchSkip === "directory" && skip !== true) {
-                skip = "directory";
             }
 
             if (skip === true) continue;
@@ -369,8 +377,6 @@ module.exports = async function file(
                     } else directoryName = directory.object.directory;
                 } else directoryName = "/";
             }
-
-            // if (exclude && exclude.includes(directoryName)) continue;
 
             if (!Path) {
                 if (directoryName === "/") Path = directoryName;
@@ -405,19 +411,20 @@ module.exports = async function file(
             };
 
             let isData = false;
-            if ( typeof directory.$data === "string") {
+            
+            if (typeof directory.$data === "string") {
                 if (isDirectory) {
                     skip = "directory";
                 } else {
                     isData = true;
-                    data =  await getData(
+                    data = await getData(
                         `${entryPath}/${file}`,
                         mimeType,
                         isSymlink
                     );  
-                    if (!data) continue
+                    if (!data) continue;
                 }
-            } else if ( typeof directory.object === "string") {
+            } else if (typeof directory.object === "string") {
                 if (isDirectory) {
                     skip = "directory";
                 } else {
@@ -427,11 +434,12 @@ module.exports = async function file(
                         mimeType,
                         isSymlink
                     );
-                    if (!data.object) continue
+                    if (!data.object) continue;
                 }
             } else if (typeof directory.object === "object" && directory.object !== null) {
                 data.array = directory.array || "files";
                 let object = { ...directory.object };
+                
                 if (!object.name) object.name = "{{name}}";
                 if (!object.src) object.src = "{{source}}";
                 if (!object.directory) object.directory = "{{directory}}";
@@ -463,7 +471,6 @@ module.exports = async function file(
                     !object.translations
                 ) {
                     try {
-                        // Call your AI translation service
                         const translations = await options.translate(
                             Buffer.isBuffer(source) ? source.toString('utf-8') : source,
                             directory.languages
@@ -471,7 +478,6 @@ module.exports = async function file(
                         data.object.translations = translations;
                     } catch (err) {
                         console.error("Translation error:", err);
-                        // Continue without translations
                     }
                 }
 
@@ -502,9 +508,7 @@ module.exports = async function file(
             if (skip !== "directory") {
                 response = await runStore(data);
                 if (isData) {
-                    console.log(
-                    `Saved: ${entryPath}/${file}`
-                    );
+                    console.log(`Saved: ${entryPath}/${file}`);
                 } else {
                     console.log(
                         `Uploaded: ${entryPath}/${file}`,
@@ -522,8 +526,6 @@ module.exports = async function file(
                 await runFiles(directory, newEntry, pathname, name);
             }
         }
-        // if (errorLog.length)
-        //     console.log(...errorLog)
     }
 
     async function getSource(filePath, mimeType, isSymlink) {
