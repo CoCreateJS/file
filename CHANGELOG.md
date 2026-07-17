@@ -1,3 +1,10 @@
+## [1.22.1](https://github.com/CoCreate-app/CoCreate-file/compare/v1.22.0...v1.22.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* bump dependencies ([f466037](https://github.com/CoCreate-app/CoCreate-file/commit/f4660373b423341ec38d550ce97ef8e0ffd4dbfb))
+
 # [1.22.0](https://github.com/CoCreate-app/CoCreate-file/compare/v1.21.2...v1.22.0) (2026-07-17)
 
 
