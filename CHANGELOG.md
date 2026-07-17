@@ -1,3 +1,21 @@
+# [1.22.0](https://github.com/CoCreate-app/CoCreate-file/compare/v1.21.2...v1.22.0) (2026-07-17)
+
+
+### Bug Fixes
+
+* bump package versions ([96e570f](https://github.com/CoCreate-app/CoCreate-file/commit/96e570f8059b7280f72a27e2f2b0cdeb6f497a6f))
+* Refactor file processing logic for improved match, include, and exclude handling ([84e10b3](https://github.com/CoCreate-app/CoCreate-file/commit/84e10b36fe593ee6964ee83199e514b5c681c337))
+* removed post install and add add packages to apprved list ([cc890ec](https://github.com/CoCreate-app/CoCreate-file/commit/cc890ece3bdcb35c7f9061c1f256ded53b9c6614))
+* semantic version handling ([0d4c846](https://github.com/CoCreate-app/CoCreate-file/commit/0d4c84670d160e23e1ab6306f36da247182d0f2f))
+* update module export to ES6 syntax in release.config.js ([60f57ad](https://github.com/CoCreate-app/CoCreate-file/commit/60f57ade816859c3d2d4e3040d11fb91adb76ee8))
+
+
+### Features
+
+* download and delete functions ([1207a11](https://github.com/CoCreate-app/CoCreate-file/commit/1207a11ec16e01d7a85b48be0f7dfdf0d2de7603))
+* Implement new feature for user authentication and improve error handling ([e91c190](https://github.com/CoCreate-app/CoCreate-file/commit/e91c19021b9e1cc9598797e7a5bafd4a4196eda2))
+* update automated workflow and release configuration for improved semantic release handling ([0edec1b](https://github.com/CoCreate-app/CoCreate-file/commit/0edec1b392519842dd3a98a6536f850ee5f07366))
+
 ## [1.21.2](https://github.com/CoCreate-app/CoCreate-file/compare/v1.21.1...v1.21.2) (2026-02-09)
 
 
