@@ -29,9 +29,9 @@
     "access": "public"
   },
   "scripts": {
-    "start": "npx webpack --config webpack.config.js",
-    "build": "npx webpack --mode=production --config webpack.config.js",
-    "dev": "npx webpack --config webpack.config.js --watch",
+    "start": "webpack --config webpack.config.js",
+    "build": "webpack --mode=production --config webpack.config.js",
+    "dev": "webpack --config webpack.config.js --watch",
     "postinstal": "node -e \"const { execSync } = require('child_process'); try { execSync('coc --version', { stdio: 'ignore' }); } catch (error) { try { execSync('npm install -g @cocreate/cli', { stdio: 'inherit' }); console.log('Installed \"@cocreate/cli\" globally.'); } catch (error) { console.error('Failed to install \"@cocreate/cli\" globally:', error); } }\""
   },
   "repository": {
@@ -60,13 +60,13 @@
     }
   },
   "dependencies": {
-    "@cocreate/actions": "^1.21.4",
-    "@cocreate/config": "^1.13.4",
-    "@cocreate/render": "^1.46.1",
-    "@cocreate/utils": "^1.42.2"
+    "@cocreate/actions": "^1.22.1",
+    "@cocreate/config": "^1.14.0",
+    "@cocreate/render": "^1.48.0",
+    "@cocreate/utils": "^1.44.0"
   },
   "devDependencies": {
-    "@cocreate/webpack": "^1.4.3"
+    "@cocreate/webpack": "^1.6.0"
   },
   "allowScripts": {
     "@cocreate/actions@1.21.4": true,
