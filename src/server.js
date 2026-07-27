@@ -84,7 +84,7 @@ const mimeTypes = {
 };
 
 async function loadConfig(configPath) {
-    let config = await Config.request(
+    let config = await Config.prompt(
         {
             organization_id: {
                 prompt: "Enter your organization_id: "
