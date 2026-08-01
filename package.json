@@ -60,13 +60,13 @@
     }
   },
   "dependencies": {
-    "@cocreate/actions": "^1.23.0",
-    "@cocreate/config": "^1.17.0",
-    "@cocreate/render": "^1.49.2",
-    "@cocreate/utils": "^1.50.3"
+    "@cocreate/actions": "^1.24.0",
+    "@cocreate/config": "^1.19.0",
+    "@cocreate/render": "^1.50.0",
+    "@cocreate/utils": "^1.52.0"
   },
   "devDependencies": {
-    "@cocreate/webpack": "^1.7.0"
+    "@cocreate/webpack": "^1.8.0"
   },
   "allowScripts": {
     "@cocreate/actions@1.21.4": true,
