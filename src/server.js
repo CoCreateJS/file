@@ -3,7 +3,6 @@ import Config from "@cocreate/config";
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
-import readline from "readline";
 
 const realpathAsync = fs.promises.realpath;
 
@@ -83,6 +82,24 @@ const mimeTypes = {
     ".7z": "application/x-7z-compressed"
 };
 
+/**
+ * Safely dynamic-imports a JavaScript module with a fallback timeout
+ * to prevent top-level execution stalls from hanging the uploader loop.
+ */
+async function safeImport(filePath, timeoutMs = 5000) {
+    const fileUrl = pathToFileURL(filePath).href;
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Import timeout for ${filePath}`)), timeoutMs)
+    );
+    try {
+        const module = await Promise.race([import(fileUrl), timeout]);
+        return module && module.default ? module.default : module;
+    } catch (err) {
+        console.warn(`Fallback to raw text reading for ${filePath} due to import error:`, err.message);
+        return null;
+    }
+}
+
 async function loadConfig(configPath) {
     let config = await Config.prompt(
         {
@@ -118,10 +135,10 @@ async function loadConfig(configPath) {
 
     if (
         !config.organization_id ||
-        (!config.apikey && (!config.password || config.email))
+        (!config.apikey && (!config.password || !config.email))
     ) {
         console.log("One or more required config params could not be found");
-        process.exit();
+        throw new Error("Missing required configuration parameters");
     }
 
     if (config.email && config.password) {
@@ -138,14 +155,13 @@ async function loadConfig(configPath) {
         };
 
         let response = await crud.send(request);
-        let { success, token } = response;
+        let { success } = response || {};
 
         if (success) {
             console.log("successful sign in");
-            // apply token to socket
         } else {
             console.log("The email or password you entered is incorrect");
-            process.exit();
+            throw new Error("Authentication failed");
         }
     }
 
@@ -167,10 +183,10 @@ async function writeFiles(objects, configPath) {
         try {
             const objPath = obj.pathname || obj.path;
             if (!objPath) continue;
-            
+
             const targetPath = path.resolve(baseDir, '.' + objPath);
             let isDirectory = obj["content-type"] === "text/directory" || obj.type === "directory" || objPath.endsWith('/');
-            
+
             if (!isDirectory) {
                 isDirectory = objects.some(o => {
                     let oPath = o.pathname || o.path;
@@ -179,11 +195,11 @@ async function writeFiles(objects, configPath) {
             }
 
             if (isDirectory) {
-                fs.mkdirSync(targetPath, { recursive: true });
+                await fs.promises.mkdir(targetPath, { recursive: true });
                 continue;
             }
-            
-            fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+            await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
 
             const src = obj.src || obj.source || (obj.object && obj.object.src) || '';
             let content = src;
@@ -191,7 +207,7 @@ async function writeFiles(objects, configPath) {
 
             if (content && typeof content === 'object' && content.type === 'Buffer' && Array.isArray(content.data)) {
                 const buf = Buffer.from(content.data);
-                fs.writeFileSync(targetPath, buf);
+                await fs.promises.writeFile(targetPath, buf);
                 downloaded.push(targetPath);
                 continue;
             }
@@ -199,7 +215,7 @@ async function writeFiles(objects, configPath) {
             if (content && typeof content === 'object' && Array.isArray(content.data)) {
                 try {
                     const buf = Buffer.from(content.data);
-                    fs.writeFileSync(targetPath, buf);
+                    await fs.promises.writeFile(targetPath, buf);
                     downloaded.push(targetPath);
                     continue;
                 } catch (err) {}
@@ -210,7 +226,7 @@ async function writeFiles(objects, configPath) {
                 if (base64Index > -1) {
                     const b64 = content.slice(base64Index + 7);
                     const buf = Buffer.from(b64, 'base64');
-                    fs.writeFileSync(targetPath, buf);
+                    await fs.promises.writeFile(targetPath, buf);
                     downloaded.push(targetPath);
                     continue;
                 } else {
@@ -219,7 +235,7 @@ async function writeFiles(objects, configPath) {
                         const dataPart = content.slice(comma + 1);
                         try {
                             const decoded = decodeURIComponent(dataPart);
-                            fs.writeFileSync(targetPath, decoded, 'utf8');
+                            await fs.promises.writeFile(targetPath, decoded, 'utf8');
                             downloaded.push(targetPath);
                             continue;
                         } catch (err) {}
@@ -228,12 +244,12 @@ async function writeFiles(objects, configPath) {
             }
 
             if (Buffer.isBuffer(content)) {
-                fs.writeFileSync(targetPath, content);
+                await fs.promises.writeFile(targetPath, content);
                 downloaded.push(targetPath);
                 continue;
             }
 
-            fs.writeFileSync(targetPath, String(content || ''), 'utf8');
+            await fs.promises.writeFile(targetPath, String(content || ''), 'utf8');
             downloaded.push(targetPath);
         } catch (err) {
             console.error('Failed to write object', obj && obj._id, err);
@@ -242,15 +258,14 @@ async function writeFiles(objects, configPath) {
     return downloaded;
 }
 
-// 1. DEFAULT EXPORT MIGRATION
 export default async function file(
     CoCreateConfig,
     configPath,
     match,
-    options
+    options = {}
 ) {
-    let directories = CoCreateConfig.directories;
-    let sources = CoCreateConfig.sources;
+    let directories = CoCreateConfig.directories || [];
+    let sources = CoCreateConfig.sources || [];
     let configDirectoryPath = path.dirname(configPath);
 
     if (match && !Array.isArray(match)) {
@@ -260,7 +275,6 @@ export default async function file(
     }
 
     let config = await loadConfig(configPath);
-
     let errorLog = [];
 
     async function runDirectories() {
@@ -268,32 +282,30 @@ export default async function file(
             const entry = directory.entry;
             await runFiles(directory, entry);
         }
-        return;
     }
 
     async function runFiles(directory, entry, Path, directoryName) {
         const entryPath = path.resolve(configDirectoryPath, entry);
-        let files = fs.readdirSync(entryPath);
+        if (!fs.existsSync(entryPath)) return;
+
+        let files = await fs.promises.readdir(entryPath);
         let exclude = directory.exclude || [];
         let include = directory.include || [];
-        
+
         for (let file of files) {
             const filePath = path.resolve(entryPath, file);
 
+            let stat = await fs.promises.lstat(filePath);
+            let isSymlink = stat.isSymbolicLink();
             let isDirectory;
-            let isSymlink = fs
-                .lstatSync(filePath)
-                .isSymbolicLink();
-                
+
             if (isSymlink) {
                 let symlinkPath = await realpathAsync(filePath);
                 isDirectory =
                     fs.existsSync(symlinkPath) &&
-                    fs.lstatSync(symlinkPath).isDirectory();
+                    (await fs.promises.lstat(symlinkPath)).isDirectory();
             } else {
-                isDirectory =
-                    fs.existsSync(filePath) &&
-                    fs.lstatSync(filePath).isDirectory();
+                isDirectory = stat.isDirectory();
             }
 
             let skip = false;
@@ -309,7 +321,7 @@ export default async function file(
                         break;
                     }
                 }
-                
+
                 if (isMatched === false) {
                     skip = true;
                 } else if (isMatched === "directory") {
@@ -328,7 +340,7 @@ export default async function file(
                         break;
                     }
                 }
-                
+
                 if (included === false) {
                     skip = true;
                 } else if (included === "directory" && skip !== "directory") {
@@ -356,8 +368,8 @@ export default async function file(
             if (!directoryName) {
                 if (directory.object && directory.object.directory) {
                     if (directory.object.directory === "{{directory}}") {
-                        directoryName = entry.split("/");
-                        directoryName = directoryName[directoryName.length - 1];
+                        let parts = entry.split("/");
+                        directoryName = parts[parts.length - 1];
                     } else directoryName = directory.object.directory;
                 } else directoryName = "/";
             }
@@ -395,7 +407,7 @@ export default async function file(
             };
 
             let isData = false;
-            
+
             if (typeof directory.$data === "string") {
                 if (isDirectory) {
                     skip = "directory";
@@ -405,7 +417,7 @@ export default async function file(
                         `${entryPath}/${file}`,
                         mimeType,
                         isSymlink
-                    );  
+                    );
                     if (!data) continue;
                 }
             } else if (typeof directory.object === "string") {
@@ -423,7 +435,7 @@ export default async function file(
             } else if (typeof directory.object === "object" && directory.object !== null) {
                 data.array = directory.array || "files";
                 let object = { ...directory.object };
-                
+
                 if (!object.name) object.name = "{{name}}";
                 if (!object.src) object.src = "{{source}}";
                 if (!object.directory) object.directory = "{{directory}}";
@@ -433,8 +445,8 @@ export default async function file(
                     object["content-type"] = "{{content-type}}";
                 if (
                     !object.public &&
-                    object.public != false &&
-                    object.public != "false"
+                    object.public !== false &&
+                    object.public !== "false"
                 )
                     object.public = "true";
 
@@ -470,7 +482,7 @@ export default async function file(
                 if (directory.array) data.array = directory.array || "files";
 
                 for (const key of Object.keys(directory.object)) {
-                    if (typeof directory.object[key] == "string") {
+                    if (typeof directory.object[key] === "string") {
                         let variables = directory.object[key].match(
                             /{{([A-Za-z0-9_.,\[\]\-\/ ]*)}}/g
                         );
@@ -482,7 +494,7 @@ export default async function file(
                                 }
                                 data.object[key] = data.object[
                                     key
-                                ].replace(variable, replacement);
+                                ].replace(variable, replacement || '');
                             }
                         }
                     }
@@ -545,24 +557,20 @@ export default async function file(
         try {
             const fileMimeType = mimeTypes[path.extname(resolvedPath)] || "text/plain";
             if (fileMimeType === "application/json") {
-                return JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
+                const text = await fs.promises.readFile(resolvedPath, "utf8");
+                return JSON.parse(text);
             } else if (
                 fileMimeType === "application/javascript" ||
                 fileMimeType === "text/javascript"
             ) {
-                // 2. ESM REPLACEMENT FOR REQUIRE/DYNAMICS
-                try {
-                    const module = await import(pathToFileURL(resolvedPath).href);
-                    return module && module.default ? module.default : module;
-                } catch (err) {
-                    return fs.readFileSync(resolvedPath, "utf8");
-                }
+                const imported = await safeImport(resolvedPath);
+                return imported || (await fs.promises.readFile(resolvedPath, "utf8"));
             } else {
-                return fs.readFileSync(resolvedPath, "utf8");
+                return await fs.promises.readFile(resolvedPath, "utf8");
             }
         } catch (error) {
             try {
-                return fs.readFileSync(resolvedPath, "utf8");
+                return await fs.promises.readFile(resolvedPath, "utf8");
             } catch (readErr) {
                 console.error(`Failed to process file: ${resolvedPath}`, error);
                 return "";
@@ -571,31 +579,30 @@ export default async function file(
     }
 
     async function runSources() {
-        // 3. REPLACED REGULAR require() ASSIGNMENTS WITH DYNAMIC import()
-        const configModule = await import(pathToFileURL(configPath).href);
-        let newConfig = configModule && configModule.default ? configModule.default : configModule;
+        const importedConfig = await safeImport(configPath);
+        let newConfig = importedConfig || CoCreateConfig;
 
         for (let i = 0; i < sources.length; i++) {
             let data = sources[i];
 
             if (typeof data === "string") {
-                let {value, filePath } = await processVariables(data);
+                let { value, filePath } = await processVariables(data);
                 let response = await runStore(value);
                 if (response && response.object && response.object[0]) {
-                    updateFilePath(filePath, response);
+                    await updateFilePath(filePath, response);
                 }
             } else if (data.array && data.object) {
                 if (typeof data.object === "string") {
-                    let {value, filePath } = await processVariables(data.object);
+                    let { value, filePath } = await processVariables(data.object);
                     if (value) {
                         let response = await runStore(value);
                         if (response && response.object && response.object[0]) {
-                            updateFilePath(filePath, response.object);
+                            await updateFilePath(filePath, response.object);
                         }
                     }
                 } else if (typeof data.object === "object" && data.object !== null) {
                     for (const key in data) {
-                        let {value } = await processVariables(data[key]);
+                        let { value } = await processVariables(data[key]);
                         if (data) {
                             data.object[key] = value;
                         }
@@ -628,17 +635,12 @@ export default async function file(
             const fileMimeType = mimeTypes[path.extname(entry)] || "text/plain";
 
             if (fileMimeType === "application/json") {
-                content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+                content = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
             } else if (fileMimeType === "application/javascript" || fileMimeType === "text/javascript") {
-                // 4. REPLACED LOCAL ASSET EXPORT INTERPRETATION WITH import()
-                try {
-                    const module = await import(pathToFileURL(filePath).href);
-                    content = module && module.default ? module.default : module;
-                } catch (err) {
-                    content = fs.readFileSync(filePath, "utf8");
-                }
+                const imported = await safeImport(filePath);
+                content = imported || (await fs.promises.readFile(filePath, "utf8"));
             } else {
-                content = fs.readFileSync(filePath, "utf8");
+                content = await fs.promises.readFile(filePath, "utf8");
             }
         } catch (error) {
             console.error(`Failed to process file: ${filePath}`, error);
@@ -648,10 +650,10 @@ export default async function file(
         return { value: content, filePath };
     }
 
-    function updateFilePath(filePath, data) {
+    async function updateFilePath(filePath, data) {
         try {
             const jsonData = JSON.stringify(data, null, 4);
-            fs.writeFileSync(filePath, jsonData, "utf8");
+            await fs.promises.writeFile(filePath, jsonData, "utf8");
             console.log(`File updated successfully at: ${filePath}`);
         } catch (error) {
             console.error(`Failed to update file at: ${filePath}`, error);
@@ -682,20 +684,19 @@ export default async function file(
                 return response;
             }
         } catch (err) {
-            console.log(err);
+            console.error("Store error:", err);
             return null;
         }
     }
 
     async function run() {
-        if (directories) {
+        if (directories.length) {
             await runDirectories();
         }
 
         if (sources && sources.length) {
             let newConfig = await runSources();
-            // 5. WRITING ESM CONFIG FORMAT TO THE OUTPUT
-            fs.writeFileSync(
+            await fs.promises.writeFile(
                 configPath,
                 `export default ${JSON.stringify(newConfig, null, 4)};`
             );
@@ -703,12 +704,8 @@ export default async function file(
     }
 
     await run();
-    if (!process.argv.includes("--watch") && !process.argv.includes("-w")) {
-        process.exit();
-    }
 }
 
-// 6. NAMED EXPORT MIGRATIONS
 export async function download(CoCreateConfig, configPath, match, options) {
     let config;
     try {
@@ -761,13 +758,7 @@ export async function download(CoCreateConfig, configPath, match, options) {
         return [];
     }
 
-    let downloaded = await writeFiles(objects, configPath);
-
-    if (!process.argv.includes("--watch") && !process.argv.includes("-w")) {
-        process.exit();
-    }
-
-    return downloaded;
+    return await writeFiles(objects, configPath);
 }
 
 export async function deleteFiles(CoCreateConfig, configPath, match, options) {
@@ -811,15 +802,14 @@ export async function deleteFiles(CoCreateConfig, configPath, match, options) {
         organization_id: config.organization_id
     };
 
-    const shouldExit = !process.argv.includes("--watch") && !process.argv.includes("-w");
     let response = null;
     try {
         if (!options || options.confirm !== false) {
-            console.log(`Permanently delete objects from`);
-            // Handled trailing cutoff safely
+            console.log(`Deleting objects from ${pathname}`);
+            response = await crud.send(filter);
         }
     } catch (err) {
-        console.error(err);
+        console.error("Delete files error:", err);
     }
     return response;
 }
