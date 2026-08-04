@@ -88,13 +88,18 @@ const mimeTypes = {
  */
 async function safeImport(filePath, timeoutMs = 5000) {
     const fileUrl = pathToFileURL(filePath).href;
-    const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Import timeout for ${filePath}`)), timeoutMs)
-    );
+    let timerId;
+
+    const timeout = new Promise((_, reject) => {
+        timerId = setTimeout(() => reject(new Error(`Import timeout for ${filePath}`)), timeoutMs);
+    });
+
     try {
         const module = await Promise.race([import(fileUrl), timeout]);
+        clearTimeout(timerId);
         return module && module.default ? module.default : module;
     } catch (err) {
+        clearTimeout(timerId);
         console.warn(`Fallback to raw text reading for ${filePath} due to import error:`, err.message);
         return null;
     }
@@ -704,6 +709,10 @@ export default async function file(
     }
 
     await run();
+
+    if (!options.watch && !options.w) {
+        process.exit(0);
+    }
 }
 
 export async function download(CoCreateConfig, configPath, match, options) {
