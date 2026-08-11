@@ -710,7 +710,7 @@ export default async function file(
 
     await run();
 
-    if (!options.watch && !options.w) {
+    if (!options.watch) {
         process.exit(0);
     }
 }
