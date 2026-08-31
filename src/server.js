@@ -150,7 +150,7 @@ async function loadConfig(configPath) {
         let request = {
             method: "signIn",
             array: "users",
-            $filter: {
+            filter: {
                 query: {
                     email: config.email,
                     password: config.password
@@ -458,7 +458,7 @@ export default async function file(
                 data.object = object;
 
                 if (!data.object._id) {
-                    data.$filter = {
+                    data.filter = {
                         query: {
                             pathname
                         }
@@ -671,7 +671,7 @@ export default async function file(
                 return null;
             }
             let response;
-            if (!data.object || (!data.object._id && !data.$filter)) {
+            if (!data.object || (!data.object._id && !data.filter)) {
                 response = await crud.send({
                     method: "object.create",
                     ...config,
@@ -748,7 +748,7 @@ export async function download(CoCreateConfig, configPath, match, options) {
         method: 'object.read',
         array: 'files',
         limit: 10000,
-        $filter: {
+        filter: {
             query: {
                 pathname: {
                     $regex: `^${pathname}`
@@ -800,7 +800,7 @@ export async function deleteFiles(CoCreateConfig, configPath, match, options) {
     let filter = {
         method: 'object.delete',
         array: 'files',
-        $filter: {
+        filter: {
             query: {
                 pathname: {
                     $regex: `^${pathname}`

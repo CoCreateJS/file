@@ -496,10 +496,10 @@ async function upload(element, data) {
 			if (!Data.public) Data.public = true;
 
 			if (input.getFilter) {
-				Data.$filter = await input.getFilter();
-				if (!Data.$filter.query) Data.$filter.query = {};
+				Data.filter = await input.getFilter();
+				if (!Data.filter.query) Data.filter.query = {};
 			} else
-				Data.$filter = {
+				Data.filter = {
 					query: {}
 				};
 
@@ -642,7 +642,7 @@ async function upload(element, data) {
 				//     segments[j].host = ['*']
 
 				//     playlist.segments[j].src = segments[j].pathname
-				//     Data.$filter.query.pathname = segments[j].pathname
+				//     Data.filter.query.pathname = segments[j].pathname
 				//     Crud.send({
 				//         ...Data,
 				//         object: segments[j],
@@ -665,7 +665,7 @@ async function upload(element, data) {
 				// }
 
 				// delete Data.object.input
-				// Data.$filter.query.pathname = files[i].pathname
+				// Data.filter.query.pathname = files[i].pathname
 				// let response = await Crud.send({
 				//     ...Data,
 				//     upsert: true
@@ -724,7 +724,7 @@ async function Import(element, data) {
 			let Data = Elements.getObject(element[i]);
 			if (Data.type) {
 				if (element[i].getFilter)
-					Data.$filter = await element[i].getFilter();
+					Data.filter = await element[i].getFilter();
 
 				if (Data.type === "key") Data.type = "object";
 
@@ -774,7 +774,7 @@ async function Export(element, data) {
 		let Data = Elements.getObject(element[i]);
 		if (Data.type) {
 			if (element[i].getFilter)
-				Data.$filter = await element[i].getFilter();
+				Data.filter = await element[i].getFilter();
 
 			if (Data.type === "key") Data.type = "object";
 			Data.method = Data.type + ".read";
