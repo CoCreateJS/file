@@ -32,6 +32,7 @@
     "start": "webpack --config webpack.config.js",
     "build": "webpack --mode=production --config webpack.config.js",
     "dev": "webpack --config webpack.config.js --watch",
+    "test": "node --test",
     "postinstal": "node -e \"const { execSync } = require('child_process'); try { execSync('coc --version', { stdio: 'ignore' }); } catch (error) { try { execSync('npm install -g @cocreate/cli', { stdio: 'inherit' }); console.log('Installed \"@cocreate/cli\" globally.'); } catch (error) { console.error('Failed to install \"@cocreate/cli\" globally:', error); } }\""
   },
   "repository": {

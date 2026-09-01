@@ -3,6 +3,7 @@ import Config from "@cocreate/config";
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
+import { replaceTemplateVariable } from "./replaceTemplateVariable.js";
 
 const realpathAsync = fs.promises.realpath;
 
@@ -497,9 +498,11 @@ export default async function file(
                                 if (key === 'src' && variable === '{{source}}' && Buffer.isBuffer(source)) {
                                     replacement = `data:${mimeType};base64,${source.toString('base64')}`;
                                 }
-                                data.object[key] = data.object[
-                                    key
-                                ].replace(variable, replacement || '');
+                                data.object[key] = replaceTemplateVariable(
+                                    data.object[key],
+                                    variable,
+                                    replacement
+                                );
                             }
                         }
                     }
