@@ -478,7 +478,7 @@ async function upload(element, data) {
 			let object = input.getAttribute("object") || "";
 			let key = input.getAttribute("key");
 
-			Data.broadcastBrowser = false;
+			Data.broadcastClient = false;
 			Data.method = "object.update";
 			if (!Data.array) Data.array = "files";
 
