@@ -174,9 +174,11 @@ async function loadConfig(configPath) {
     return config;
 }
 
-async function writeFiles(objects, configPath) {
-    let baseDir = process.cwd();
-    if (configPath) {
+async function writeFiles(objects, configPath, destination) {
+    let baseDir = destination
+        ? path.resolve(destination)
+        : process.cwd();
+    if (!destination && configPath) {
         const projectRoot = path.dirname(configPath);
         baseDir = path.join(projectRoot, 'src');
         if (!fs.existsSync(baseDir)) {
@@ -191,6 +193,14 @@ async function writeFiles(objects, configPath) {
             if (!objPath) continue;
 
             const targetPath = path.resolve(baseDir, '.' + objPath);
+            const relativePath = path.relative(baseDir, targetPath);
+            if (
+                relativePath.startsWith(`..${path.sep}`) ||
+                relativePath === '..' ||
+                path.isAbsolute(relativePath)
+            ) {
+                throw new Error(`Path escapes download destination: ${objPath}`);
+            }
             let isDirectory = obj["content-type"] === "text/directory" || obj.type === "directory" || objPath.endsWith('/');
 
             if (!isDirectory) {
@@ -745,32 +755,63 @@ export async function download(CoCreateConfig, configPath, match, options) {
 
     console.log(`Downloading files for: ${pathArg}`);
 
-    let pathname = pathArg.startsWith('/') ? pathArg : `/${pathArg}`;
+    const pathname = pathArg.startsWith('/') ? pathArg : `/${pathArg}`;
+    const isPrefix = pathname === '/' || pathname.endsWith('/');
+    const escapedPathname = pathname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const query = isPrefix
+        ? { pathname: { $regex: `^${escapedPathname}` } }
+        : { pathname };
+    const downloaded = [];
+    let index = 0;
+    let total;
 
-    let filter = {
-        method: 'object.read',
-        array: 'files',
-        limit: 10000,
-        filter: {
-            query: {
-                pathname: {
-                    $regex: `^${pathname}`
-                }
+    while (true) {
+        const request = {
+            ...config,
+            method: 'object.read',
+            array: 'files',
+            organization_id: config.organization_id,
+            filter: {
+                query,
+                sort: [
+                    { key: 'pathname', direction: 'asc' },
+                    { key: '_id', direction: 'asc' }
+                ],
+                index,
+                limit: 1
             }
-        },
-        ...config,
-        organization_id: config.organization_id
-    };
+        };
 
-    let response = await crud.send(filter);
-    let objects = (response && response.object && response.object.length) ? response.object : [];
+        const response = await crud.send(request);
+        const objects = response && Array.isArray(response.object)
+            ? response.object
+            : [];
+        if (!objects.length) break;
 
-    if (!objects || !objects.length) {
-        console.log('No stored files found for', pathArg);
-        return [];
+        if (total === undefined && response.filter) {
+            total = response.filter.count;
+        }
+
+        const objectPath = objects[0].pathname || objects[0].path;
+        const progress = total === undefined
+            ? `${index + 1}`
+            : `${index + 1}/${total}`;
+        console.log(`Downloading [${progress}] ${objectPath}`);
+
+        const written = await writeFiles(
+            objects,
+            configPath,
+            options && options.destination
+        );
+        downloaded.push(...written);
+        index++;
     }
 
-    return await writeFiles(objects, configPath);
+    if (!downloaded.length) {
+        console.log('No stored files found for', pathArg);
+    }
+
+    return downloaded;
 }
 
 export async function deleteFiles(CoCreateConfig, configPath, match, options) {
