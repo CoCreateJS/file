@@ -87,6 +87,37 @@ We appreciate your continued support, thank you!
 
 <a name="license"></a>
 
+## JSON import and export actions
+
+Use `actions="export"` with `export-query` to select CRUD-bound elements.
+Export follows nested queries once per element and downloads one `export.json`.
+The file contains bundles with `type`, collection scope, and records under the
+matching type key (for example, `object`). Filtered targets export all matching
+pages, starting at index zero, without changing the displayed pagination.
+File-input targets export their selected file objects.
+
+Set `export-format="csv"` for CSV instead of the default JSON. Provide
+`export-columns-query` targeting table headers with `data-export-key` and
+`data-export-label`, or a value-bearing element containing an array of
+`{ key, label }` definitions. Visible table headers determine column order;
+definitions provide the fallback for grid views. Only these columns are
+exported. Nested objects and arrays are JSON within quoted CSV cells; strings
+that resemble spreadsheet formulas are prefixed with an apostrophe. CSV is
+for spreadsheet export; import continues to accept JSON.
+
+Use `actions="import"` with `import-query` to choose a destination element.
+A regular button opens a JSON file picker; a file-input action imports its
+selected files. Import accepts export bundles or plain records. An explicit
+destination overrides the bundle's collection scope; plain records require a
+destination array. Object records with `_id` use update with upsert; records
+without `_id` use create. All input is validated before writes begin. Writes
+are sequential, not transactional: a later server failure does not undo earlier
+successful writes.
+
+Import and export finish their action chain only after the operation succeeds.
+Cancellation or failure stops the chain; failures emit `importError` or
+`exportError` with the error in `event.detail.error`.
+
 # License
 
 This software is dual-licensed under the GNU Affero General Public License version 3 (AGPLv3) and a commercial license.

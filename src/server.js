@@ -290,8 +290,13 @@ export default async function file(
         match = [];
     }
 
+    if (!directories.length && !sources.length) {
+        if (!options.watch) process.exit(0);
+        return;
+    }
+
     let config = await loadConfig(configPath);
-    let errorLog = [];
+    let failed = 0;
 
     async function runDirectories() {
         for (const directory of directories) {
@@ -521,7 +526,9 @@ export default async function file(
 
             if (skip !== "directory") {
                 let response = await runStore(data);
-                if (isData) {
+                if (!response || response.error) {
+                    console.error(`Upload not confirmed: ${filePath}`, response?.error || "No server confirmation received");
+                } else if (isData) {
                     console.log(`Saved: ${entryPath}/${file}`);
                 } else {
                     console.log(
@@ -529,7 +536,6 @@ export default async function file(
                         `To: ${pathname}`
                     );
                 }
-                if (response && response.error) errorLog.push(response.error);
             }
 
             if (isDirectory && pathname) {
@@ -698,10 +704,10 @@ export default async function file(
                     upsert: true
                 });
             }
-            if (response) {
-                return response;
-            }
+            if (!response || response.error) failed++;
+            return response;
         } catch (err) {
+            failed++;
             console.error("Store error:", err);
             return null;
         }
@@ -724,7 +730,7 @@ export default async function file(
     await run();
 
     if (!options.watch) {
-        process.exit(0);
+        process.exit(failed ? 1 : 0);
     }
 }
 

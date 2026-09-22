@@ -22,6 +22,9 @@
  * For details, visit <https://cocreate.app/licenses/> or contact us at sales@cocreate.app.
  */
 
+import { toCSV } from "./csv.js";
+import { createTransfer } from "./transfer.js";
+
 import Observer from "@cocreate/observer";
 import Crud from "@cocreate/crud-client";
 import Elements from "@cocreate/elements";
@@ -207,6 +210,8 @@ async function fileEvent(event) {
 			if (input.renderValue)
 				input.renderValue(Array.from(selected.values()));
 
+			input.dispatchEvent(new CustomEvent("filesSelected", { bubbles: true }));
+
 			const isImport = input.getAttribute("import");
 			const isRealtime = input.getAttribute("realtime");
 			if (isRealtime && isRealtime !== "false") {
@@ -272,6 +277,9 @@ async function getFiles(fileInputs, readAs) {
 
 				let fileObject = { ...file };
 				fileObject.size = file.size;
+				fileObject.name = file.name;
+				fileObject.type = file.type;
+				fileObject.lastModified = file.lastModified;
 				await getCustomData(fileObject);
 
 				files.push(fileObject);
@@ -689,117 +697,58 @@ async function upload(element, data) {
 	return data;
 }
 
+const transfer = createTransfer({
+    getDataObject: element => Elements.getDataObject(element),
+    getFiles,
+    queryElements,
+    send: data => Crud.send(data),
+    download: exportFile
+});
+
 async function Import(element, data) {
-	if (!data) data = [];
-
-	if (!Array.isArray(element)) element = [element];
-
-	for (let i = 0; i < element.length; i++) {
-		const inputs = [];
-		if (element[i].type === "file") inputs.push(element[i]);
-		else if (element[i].tagName === "form") {
-			let fileInputs = element[i].querySelectorAll('input[type="file"]');
-			inputs.push(...fileInputs);
-		} else {
-			const form = element[i].closest("form");
-			if (form)
-				inputs.push(...form.querySelectorAll('input[type="file"]'));
-		}
-
-		if (inputs.length) {
-			let Data = await getFiles(inputs);
-			Data.reduce((result, { src }) => {
-				try {
-					const parsedSrc = JSON.parse(src);
-					if (Array.isArray(parsedSrc)) data.push(...parsedSrc);
-					else data.push(parsedSrc);
-				} catch (error) {
-					console.error(`Error parsing JSON: ${error}`);
-				}
-				return result;
-			}, []);
-		}
-
-		if (element[i].type !== "file") {
-			let Data = Elements.getObject(element[i]);
-			if (Data.type) {
-				if (element[i].getFilter)
-					Data.filter = await element[i].getFilter();
-
-				if (Data.type === "key") Data.type = "object";
-
-				data.push(Data);
-			}
-		}
-
-		if (data.length) {
-			for (let i = 0; i < data.length; i++) {
-				// TODO: if _id exist use update method
-				data[i].method = data[i].type + ".create";
-				data[i] = await Crud.send(data[i]);
-			}
-		}
-
-		let queriedElements = queryElements({
-			element: element[i],
-			prefix: "import"
-		});
-		if (queriedElements.length) {
-			Import(queriedElements, data);
-		}
-	}
-	return data;
+    return transfer.importData(element, data);
 }
 
-// TODO: Export selected rows or entire table or entire array
-async function Export(element, data) {
-	if (!data) data = [];
-
-	if (!Array.isArray(element)) element = [element];
-
-	for (let i = 0; i < element.length; i++) {
-		const inputs = [];
-		if (element[i].type === "file") inputs.push(element[i]);
-		else if (element[i].tagName === "form") {
-			let fileInputs = element[i].querySelectorAll('input[type="file"]');
-			inputs.push(...fileInputs);
-		} else {
-			const form = element[i].closest("form");
-			if (form)
-				inputs.push(...form.querySelectorAll('input[type="file"]'));
-		}
-
-		if (inputs.length) data.push(...getFiles(inputs));
-
-		let Data = Elements.getObject(element[i]);
-		if (Data.type) {
-			if (element[i].getFilter)
-				Data.filter = await element[i].getFilter();
-
-			if (Data.type === "key") Data.type = "object";
-			Data.method = Data.type + ".read";
-			Data = await Crud.send(Data);
-			data.push(...Data[Data.type]);
-		}
-
-		let queriedElements = queryElements({
-			element: element[i],
-			prefix: "export"
-		});
-		if (queriedElements.length) {
-			Export(queriedElements, data);
-		}
-	}
-
-	if (data.length) exportFile(data);
-
-	return data;
+async function Export(element) {
+    const format = element.getAttribute("export-format") || "json";
+    if (!["json", "csv"].includes(format)) throw new Error("Unsupported export format.");
+    let columns;
+    if (format === "csv") {
+        const sources = queryElements({ element, prefix: "export-columns" });
+        const headers = sources.filter(source => source.hasAttribute("data-export-key") && !source.hidden && getComputedStyle(source).display !== "none");
+        if (headers.length) columns = headers.map(source => ({
+            key: source.getAttribute("data-export-key"),
+            label: source.getAttribute("data-export-label") || source.textContent.trim()
+        }));
+        else {
+            const source = sources.find(source => !source.hasAttribute("data-export-key"));
+            columns = source ? await source.getValue() : null;
+        }
+        if (!Array.isArray(columns) || !columns.length) throw new Error("CSV export requires columns.");
+    }
+    return transfer.exportData(element, { format, columns });
 }
 
-async function exportFile(data) {
-	let name = data.type || "download";
-	let exportData = JSON.stringify(data, null, 2);
-	let blob = new Blob([exportData], { type: "application/json" });
+function pickImportFile() {
+    return new Promise(resolve => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+        input.hidden = true;
+        const finish = file => { input.remove(); resolve(file); };
+        input.addEventListener("change", () => finish(input.files[0] || null), { once: true });
+        input.addEventListener("cancel", () => finish(null), { once: true });
+        document.body.appendChild(input);
+        input.click();
+    });
+}
+
+async function exportFile(data, { format = "json", columns } = {}) {
+	let name = `export.${format}`;
+	let exportData = format === "csv"
+        ? "\uFEFF" + toCSV(data.flatMap(bundle => Array.isArray(bundle[bundle.type]) ? bundle[bundle.type] : [bundle]), columns)
+        : JSON.stringify(data, null, 2);
+	let blob = new Blob([exportData], { type: format === "csv" ? "text/csv;charset=utf-8" : "application/json" });
 	let url = URL.createObjectURL(blob);
 
 	let link = document.createElement("a");
@@ -987,34 +936,39 @@ Actions.init([
 			"upload",
 			"download",
 			"saveLocally",
-			"asveAs",
+			"saveAs",
 			"import",
 			"export",
 			"importUrl"
 		],
-		callback: (action) => {
-			if (action.name === "upload") upload(action.element);
-			else if (
-				action.name === "saveLocally" ||
-				action.name === "saveAs"
-			) {
-				save(action.element);
-			} else if (action.name === "export") {
-				Export(action.element);
-			} else if (action.name === "import") {
-				Import(action.element);
-			} else if (action.name === "importUrl") {
-				importURL(action);
-			} else {
-				// Something...
-			}
-
-			action.element.dispatchEvent(
-				new CustomEvent(action.name, {
-					detail: {}
-				})
-			);
-		}
+        callback: async (action) => {
+            try {
+                let result;
+                if (action.name === "export") result = await Export(action.element);
+                else if (action.name === "import") {
+                    if (action.element.type === "file") result = await Import(action.element);
+                    else {
+                        const file = await pickImportFile();
+                        if (!file) { action.abort?.(); return; }
+                        result = await Import(action.element, JSON.parse(await file.text()));
+                    }
+                } else if (action.name === "upload") result = await upload(action.element);
+                else if (action.name === "saveLocally" || action.name === "saveAs")
+                    result = await save(action.element);
+                else if (action.name === "importUrl") { await importURL(action); return; }
+                else { action.abort?.(); return; }
+                if (action.end) action.end({ result });
+                else action.element.dispatchEvent(new CustomEvent(action.endEvent || action.name, {
+                    detail: { result }
+                }));
+            } catch (error) {
+                action.abort?.();
+                action.element.dispatchEvent(new CustomEvent(`${action.name}Error`, {
+                    bubbles: true, detail: { error }
+                }));
+                console.error(`File ${action.name} failed:`, error);
+            }
+        }
 	},
 	{
 		name: [
