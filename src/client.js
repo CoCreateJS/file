@@ -35,6 +35,13 @@ import { setValue } from "@cocreate/element-prototype";
 
 const inputs = new Map();
 const Files = new Map();
+const dropTargets = new WeakMap();
+const fileForDropTargets = new WeakSet();
+const fileSelectElements = new WeakSet();
+const dropControllers = new Set();
+let dropTargetObserver;
+const fileForAttribute = "file-for";
+const fileForControllers = new WeakMap();
 
 /**
  * Initializes file elements. If no parameter is provided, it queries and initializes all elements with type="file".
@@ -57,8 +64,13 @@ async function init(elements) {
 
 		elements[i].getValue = async () => await getFiles([elements[i]]);
 		elements[i].getFiles = async () => await getFiles([elements[i]]);
+		elements[i].getValueSync = () => {
+			const selected = inputs.get(elements[i]);
+			return selected ? getRenderableFiles(selected.values()) : [];
+		};
 		elements[i].setValue = (files) => setFiles(elements[i], files);
 		elements[i].renderValue = (files) => setFiles(elements[i], files);
+		initDropTargets(elements[i]);
 
 		// if (elements[i].renderValue) {
 		//     let data = await elements[i].getValue()
@@ -110,9 +122,329 @@ async function init(elements) {
 	}
 }
 
-async function fileEvent(event) {
+function initDropTargets(input) {
+	if (!input.hasAttribute?.("file-drop-query")) return;
+	dropControllers.add(input);
+	observeDropTargets();
+
+	const targets = queryElements({ element: input, prefix: "file-drop" });
+	for (const target of targets) {
+		let controllers = dropTargets.get(target);
+		if (!controllers) {
+			controllers = new WeakSet();
+			dropTargets.set(target, controllers);
+		}
+		if (controllers.has(input)) continue;
+		controllers.add(input);
+
+		const hasFiles = (event) =>
+			Array.from(event.dataTransfer?.types || []).includes("Files");
+		const activate = (event) => {
+			if (!hasFiles(event)) return;
+			event.preventDefault();
+			target.setAttribute("file-drop-active", "");
+		};
+		const deactivate = (event) => {
+			if (event.relatedTarget && target.contains(event.relatedTarget)) return;
+			target.removeAttribute("file-drop-active");
+		};
+
+		target.addEventListener("dragenter", activate);
+		target.addEventListener("dragover", activate);
+		target.addEventListener("dragleave", deactivate);
+		target.addEventListener("drop", async (event) => {
+			if (!hasFiles(event)) return;
+			event.preventDefault();
+			target.removeAttribute("file-drop-active");
+			await fileEvent(event, input);
+		});
+	}
+}
+
+function observeDropTargets() {
+	if (dropTargetObserver || typeof MutationObserver === "undefined") return;
+
+	dropTargetObserver = new MutationObserver(() => {
+		for (const input of dropControllers) {
+			if (!input.isConnected) {
+				dropControllers.delete(input);
+				continue;
+			}
+			initDropTargets(input);
+		}
+	});
+	dropTargetObserver.observe(document.documentElement, {
+		childList: true,
+		subtree: true
+	});
+}
+
+function initFileForDropTarget(target) {
+	if (fileForDropTargets.has(target)) return;
+	fileForDropTargets.add(target);
+
+	const hasFiles = (event) =>
+		Array.from(event.dataTransfer?.types || []).includes("Files");
+	const activate = (event) => {
+		if (!hasFiles(event) || !resolveFileController(target)) return;
+		event.preventDefault();
+		target.setAttribute("file-drop-active", "");
+	};
+	const deactivate = (event) => {
+		if (event.relatedTarget && target.contains(event.relatedTarget)) return;
+		target.removeAttribute("file-drop-active");
+	};
+
+	target.addEventListener("dragenter", activate);
+	target.addEventListener("dragover", activate);
+	target.addEventListener("dragleave", deactivate);
+	target.addEventListener("drop", async (event) => {
+		if (!hasFiles(event)) return;
+		const controller = resolveFileController(target);
+		if (!controller) return;
+
+		event.preventDefault();
+		target.removeAttribute("file-drop-active");
+		await fileEvent(event, controller);
+	});
+}
+
+function resolveFileController(element) {
+	let current = element;
+	while (current) {
+		const controllerId = current.getAttribute?.(fileForAttribute)?.trim();
+		if (controllerId) {
+			const controller = document.getElementById(
+				controllerId.replace(/^#/, "")
+			);
+			return controller?.matches?.('input[type="file"]')
+				? controller
+				: null;
+		}
+		current = current.parentElement;
+	}
+	return null;
+}
+
+function getFileForElements(controller) {
+	return Array.from(document.querySelectorAll(`[${fileForAttribute}]`)).filter(
+		(element) => resolveFileController(element) === controller
+	);
+}
+
+function syncFileCapture(element) {
+	const input = resolveFileController(element);
+	if (!input || !element.hasAttribute("file-capture")) return;
+
+	const capture = element.getAttribute("file-capture");
+	if (!capture || capture === "false") {
+		input.removeAttribute("capture");
+	} else {
+		input.setAttribute("capture", capture);
+	}
+}
+
+async function getFileSelectValue(element) {
+	const renderController = element.closest("[render-query]");
+	const renderedElement = element.closest("[render-clone]");
+	if (!renderController?.getData || !renderedElement) return;
+
+	const data = await renderController.getData();
+	const renderKey = renderController.getAttribute("render") || "object";
+	const records = Array.isArray(data) ? data : data?.[renderKey];
+	if (!Array.isArray(records)) return;
+
+	const objectId = renderedElement.getAttribute("object") ||
+		renderedElement.getAttribute("eid");
+	const file = records.find(record =>
+		String(record?._id || record?.id || record?.pathname) === String(objectId)
+	);
+	if (!file) return;
+
+	const selectedFile = { ...file };
+
+	if (!selectedFile.id) {
+		selectedFile.id = selectedFile._id || selectedFile.pathname;
+	}
+	if (!selectedFile.src) {
+		const preview = element.querySelector("img[src], video[src], audio[src]");
+		const renderedPreview = preview || renderedElement.querySelector(
+			"img[src], video[src], audio[src]"
+		);
+		if (renderedPreview) {
+			selectedFile.src = renderedPreview.currentSrc || renderedPreview.src;
+		}
+	}
+	return selectedFile;
+}
+
+function initFileSelect(element) {
+	if (fileSelectElements.has(element)) return;
+	fileSelectElements.add(element);
+
+	element.addEventListener("click", async (event) => {
+		// A label click produces a second click on its nested form control.
+		if (event.target !== element && event.target.matches?.("input, select, textarea")) {
+			return;
+		}
+
+		const controller = resolveFileController(element);
+		const file = await getFileSelectValue(element);
+		if (!controller || !file) return;
+
+		setFiles(controller, [file]);
+		controller.dispatchEvent(new CustomEvent("filesSelected", { bubbles: true }));
+		controller.dispatchEvent(new Event("input", { bubbles: true }));
+		controller.dispatchEvent(new Event("change", { bubbles: true }));
+	});
+}
+
+function getRenderableFiles(files) {
+	return Array.from(files || [], (file) => ({
+		...file,
+		name: file.name,
+		type: file.type,
+		size: file.size,
+		lastModified: file.lastModified,
+		webkitRelativePath: file.webkitRelativePath
+	}));
+}
+
+function acceptToFilterValue(accept) {
+	const patterns = String(accept || "")
+		.split(",")
+		.map((value) => value.trim().toLowerCase())
+		.filter((value) => value && value !== "*/*" && value.includes("/"))
+		.map((value) => {
+			const wildcard = value.endsWith("/*");
+			const pattern = wildcard ? value.slice(0, -1) : value;
+			const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			return wildcard ? `${escaped}.*` : escaped;
+		});
+
+	if (!patterns.length) return "";
+	if (patterns.length === 1) {
+		return patterns[0].endsWith("/.*")
+			? `^${patterns[0].slice(0, -2)}`
+			: `^${patterns[0]}$`;
+	}
+	return `^(?:${patterns.join("|")})$`;
+}
+
+function applyFileFor(element) {
+	if (!element?.matches?.(`[${fileForAttribute}]`)) return;
+
+	const controller = resolveFileController(element);
+	const previousController = fileForControllers.get(element);
+	if (controller) {
+		fileForControllers.set(element, controller);
+		if (element.hasAttribute("file-dropzone")) {
+			initFileForDropTarget(element);
+		}
+		if (element.tagName === "LABEL") {
+			element.htmlFor = controller.id;
+			if (!element.fileCaptureEvent) {
+				element.fileCaptureEvent = () => syncFileCapture(element);
+				element.addEventListener(
+					"mouseover",
+					element.fileCaptureEvent
+				);
+				element.addEventListener(
+					"pointerdown",
+					element.fileCaptureEvent,
+					{ capture: true }
+				);
+				element.addEventListener(
+					"touchstart",
+					element.fileCaptureEvent,
+					{ capture: true, passive: true }
+				);
+				element.addEventListener(
+					"click",
+					element.fileCaptureEvent,
+					{ capture: true }
+				);
+			}
+		}
+
+		if (element.hasAttribute("filter-query-key")) {
+			const filterValue = acceptToFilterValue(controller.accept);
+			if (filterValue) {
+				element.setAttribute("filter-query-value", filterValue);
+			} else {
+				element.removeAttribute("filter-query-value");
+			}
+		}
+
+		if (
+			element.matches("template, [template], .template, [render]") &&
+			!element.hasAttribute("render-query") &&
+			!element.hasAttribute("render-clone")
+		) {
+			const selected = inputs.get(controller);
+			render({
+				source: controller,
+				element: [element],
+				data: selected ? getRenderableFiles(selected.values()) : [],
+				key: "object"
+			});
+		}
+	} else {
+		fileForControllers.delete(element);
+		if (element.tagName === "LABEL") element.removeAttribute("for");
+		if (element.hasAttribute("filter-query-key")) {
+			element.removeAttribute("filter-query-value");
+		}
+		if (
+			previousController &&
+			element.matches("template, [template], .template, [render]") &&
+			!element.hasAttribute("render-query") &&
+			!element.hasAttribute("render-clone")
+		) {
+			render({
+				source: previousController,
+				element: [element],
+				data: [],
+				key: "object"
+			});
+		}
+	}
+
+	for (const child of element.querySelectorAll?.(`[${fileForAttribute}]`) || []) {
+		applyFileFor(child);
+	}
+}
+
+function refreshFileForController(controller) {
+	for (const element of getFileForElements(controller)) {
+		applyFileFor(element);
+	}
+}
+
+function acceptsFile(input, file) {
+	const accept = input.accept || input.getAttribute("accept") || "";
+	const types = accept
+		.split(",")
+		.map((type) => type.trim().toLowerCase())
+		.filter(Boolean);
+	if (!types.length) return true;
+
+	const name = (file.name || "").toLowerCase();
+	const mime = (file.type || "").toLowerCase();
+	return types.some((type) => {
+		if (type.startsWith(".")) return name.endsWith(type);
+		if (type.endsWith("/*")) return mime.startsWith(type.slice(0, -1));
+		return mime === type;
+	});
+}
+
+async function fileEvent(event, controller) {
 	try {
-		let input = event.currentTarget;
+		// Render dispatches synthetic input/change events after updating a
+		// template. Do not treat that notification as another file selection.
+		if (event.type === "change" && event.isTrusted === false) return;
+		const fileInput = controller || event.currentTarget;
+		let input = fileInput.fileElement || fileInput;
 		let multiple = input.multiple;
 
 		// If 'multiple' is not explicitly set, check the attribute.
@@ -123,10 +455,16 @@ async function fileEvent(event) {
 		}
 
 		let selected = inputs.get(input) || new Map();
-		let files = input.files;
-		input = input.fileElement || input;
+		const isDrop = Boolean(event.dataTransfer);
+		let files = isDrop
+			? Array.from(event.dataTransfer.files || []).filter((file) =>
+				acceptsFile(input, file)
+			)
+			: fileInput.files;
+		if (isDrop && !multiple && files.length > 1) files = files.slice(0, 1);
 		if (!files || !files.length) {
 			event.preventDefault();
+			if (isDrop) return;
 			if (input.hasAttribute("directory")) {
 				let handle = await window.showDirectoryPicker();
 				let file = {
@@ -180,9 +518,15 @@ async function fileEvent(event) {
 
 			if (!files[i].size) files[i].size = handle.size;
 
-			files[i].directory = handle.directory || "/";
-			files[i].path = handle.path || "/";
-			files[i].pathname = handle.pathname || "/" + handle.name;
+			let configuredPath = input.getAttribute("path") || "/";
+			if (!configuredPath.startsWith("/")) configuredPath = "/" + configuredPath;
+			if (!configuredPath.endsWith("/")) configuredPath += "/";
+			const configuredDirectory = configuredPath === "/"
+				? "/"
+				: configuredPath.split("/").filter(Boolean).pop();
+			files[i].directory = handle.directory || configuredDirectory;
+			files[i].path = handle.path || configuredPath;
+			files[i].pathname = handle.pathname || configuredPath + handle.name;
 			files[i]["content-type"] = files[i].type;
 			files[i].input = input;
 			files[i].id = await getFileId(files[i]);
@@ -372,8 +716,24 @@ function setFiles(element, files) {
 	if (element.renderValue)
 		render({
 			source: element,
-			data: Array.from(selected.values())
+			data: getRenderableFiles(selected.values()),
+			key: "object"
 		});
+
+	const renderTargets = getFileForElements(element).filter(
+		(target) =>
+			target.matches("template, [template], .template, [render]") &&
+			!target.hasAttribute("render-query") &&
+			!target.hasAttribute("render-clone")
+	);
+	if (renderTargets.length) {
+		render({
+			source: element,
+			element: renderTargets,
+			data: getRenderableFiles(selected.values()),
+			key: "object"
+		});
+	}
 }
 
 // TODO: Could this benifit from media processing to save results locally
@@ -828,9 +1188,11 @@ async function fileRenderAction(action) {
 		if (closestElement) file_id = closestElement.getAttribute("file_id");
 	}
 
-	let input = Files.get(file_id).input;
-
-	if (!file_id || !input) return;
+	if (!file_id) return;
+	const registeredFile = Files.get(file_id);
+	if (!registeredFile) return;
+	let input = registeredFile.input;
+	if (!input) return;
 
 	let file = inputs.get(input).get(file_id);
 	if (!file) return;
@@ -839,7 +1201,10 @@ async function fileRenderAction(action) {
 		let name = element.getAttribute("value");
 		create(file, "file", name);
 	} else if (action.name === "deleteFile") Delete(file);
-	else if (action.name === "createDirectory") {
+	else if (action.name === "removeFile") {
+		remove(file);
+		element.closest("[file_id]")?.remove();
+	} else if (action.name === "createDirectory") {
 		let name = element.getAttribute("value");
 		create(file, "directory", name);
 	} else if (action.name === "deleteDirectory") Delete(file);
@@ -849,6 +1214,12 @@ async function fileRenderAction(action) {
 			detail: {}
 		})
 	);
+}
+
+function remove(file) {
+	if (!file?.input || !file.id) return;
+	inputs.get(file.input)?.delete(file.id);
+	Files.delete(file.id);
 }
 
 async function create(directory, type, name, src = "") {
@@ -919,16 +1290,52 @@ Observer.init({
 	name: "CoCreateFileAddedNodes",
 	types: ["addedNodes"],
 	selector: '[type="file"]',
-	callback: (mutation) => init(mutation.target)
+	callback: (mutation) => {
+		init(mutation.target);
+		refreshFileForController(mutation.target);
+	}
 });
 
 Observer.init({
 	name: "CoCreateFileAttributes",
 	types: ["attributes"],
-	attributeFilter: ["type"],
+	attributeFilter: ["type", "accept", "id"],
 	selector: '[type="file"]',
-	callback: (mutation) => init(mutation.target)
+	callback: (mutation) => {
+		init(mutation.target);
+		refreshFileForController(mutation.target);
+	}
 });
+
+Observer.init({
+	name: "CoCreateFileForAddedNodes",
+	types: ["addedNodes"],
+	selector: `[${fileForAttribute}]`,
+	callback: (mutation) => applyFileFor(mutation.target)
+});
+
+Observer.init({
+	name: "CoCreateFileForAttributes",
+	types: ["attributes"],
+	attributeFilter: [fileForAttribute, "file-dropzone", "filter-query-key"],
+	selector: `[${fileForAttribute}]`,
+	callback: (mutation) => applyFileFor(mutation.target)
+});
+
+Observer.init({
+	name: "CoCreateFileSelectAddedNodes",
+	types: ["addedNodes"],
+	selector: "[file-select]",
+	callback: (mutation) => initFileSelect(mutation.target)
+});
+
+for (const element of document.querySelectorAll(`[${fileForAttribute}]`)) {
+	applyFileFor(element);
+}
+
+for (const element of document.querySelectorAll("[file-select]")) {
+	initFileSelect(element);
+}
 
 Actions.init([
 	{
@@ -974,6 +1381,7 @@ Actions.init([
 		name: [
 			"createFile",
 			"deleteFile",
+			"removeFile",
 			"createDirectory",
 			"deleteDirectory"
 		],
@@ -985,4 +1393,4 @@ Actions.init([
 
 init();
 
-export default { inputs, getFiles, create, Delete };
+export default { inputs, getFiles, create, Delete, remove };
