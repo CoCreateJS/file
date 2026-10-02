@@ -23,7 +23,7 @@
  */
 
 import { toCSV } from "./csv.js";
-import { createTransfer } from "./transfer.js";
+import { createTransfer, getRawExport } from "./transfer.js";
 
 import Observer from "@cocreate/observer";
 import Crud from "@cocreate/crud-client";
@@ -1071,6 +1071,7 @@ async function Import(element, data) {
 
 async function Export(element) {
     const format = element.getAttribute("export-format") || "json";
+    if (format === "raw") return exportRaw(element);
     if (!["json", "csv"].includes(format)) throw new Error("Unsupported export format.");
     let columns;
     if (format === "csv") {
@@ -1087,6 +1088,20 @@ async function Export(element) {
         if (!Array.isArray(columns) || !columns.length) throw new Error("CSV export requires columns.");
     }
     return transfer.exportData(element, { format, columns });
+}
+
+function exportRaw(element) {
+    const data = getRawExport(element, queryElements);
+    const blob = new Blob([data.content], { type: data.mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = data.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return data;
 }
 
 function pickImportFile() {

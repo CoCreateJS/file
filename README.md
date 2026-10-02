@@ -105,6 +105,24 @@ exported. Nested objects and arrays are JSON within quoted CSV cells; strings
 that resemble spreadsheet formulas are prefixed with an apostrophe. CSV is
 for spreadsheet export; import continues to accept JSON.
 
+Use `export-format="raw"` to download the text content of one queried element
+without serializing it as a CRUD record. Set `export-query` to select that
+single source; `export-filename` sets the downloaded filename (default
+`export.txt`) and `export-mime` sets its MIME type (default
+`text/plain;charset=utf-8`). Raw export is intended for source/code and other
+plain text, and rejects zero or multiple source elements.
+
+```html
+<button
+	actions="export"
+	export-format="raw"
+	export-query="$closest .code-block code"
+	export-filename="example.js"
+	export-mime="text/javascript;charset=utf-8">
+	Download source
+</button>
+```
+
 Use `actions="import"` with `import-query` to choose a destination element.
 A regular button opens a JSON file picker; a file-input action imports its
 selected files. Import accepts export bundles or plain records. An explicit

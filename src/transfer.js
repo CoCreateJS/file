@@ -13,6 +13,22 @@ function records(value) {
     return result;
 }
 
+export function getRawExport(element, queryElements) {
+    const sources = queryElements({ element, prefix: 'export' });
+    if (sources.length !== 1)
+        throw new Error('Raw export requires exactly one source element.');
+
+    const filename = (element.getAttribute('export-filename') || 'export.txt')
+        .split(/[\\/]/)
+        .pop() || 'export.txt';
+
+    return {
+        content: sources[0].textContent ?? '',
+        filename,
+        mime: element.getAttribute('export-mime') || 'text/plain;charset=utf-8'
+    };
+}
+
 export function createTransfer({ getDataObject, getFiles, queryElements, send, download }) {
     function targets(source, prefix, visited = new Set()) {
         const result = [];

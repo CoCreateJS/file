@@ -1,6 +1,45 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTransfer } from '../src/transfer.js';
+import { createTransfer, getRawExport } from '../src/transfer.js';
+
+test('raw export reads one source as unchanged text with filename and MIME attributes', () => {
+    const source = { textContent: '<h1>hello</h1>\n' };
+    const element = {
+        getAttribute: name => ({
+            'export-query': '$closest code',
+            'export-filename': 'cocreate-ai.html',
+            'export-mime': 'text/html;charset=utf-8'
+        })[name] || null
+    };
+    const result = getRawExport(element, ({ element: target, prefix }) => {
+        assert.equal(target, element);
+        assert.equal(prefix, 'export');
+        return [source];
+    });
+
+    assert.deepEqual(result, {
+        content: '<h1>hello</h1>\n',
+        filename: 'cocreate-ai.html',
+        mime: 'text/html;charset=utf-8'
+    });
+});
+
+test('raw export defaults its filename and MIME type and rejects ambiguous sources', () => {
+    const element = { getAttribute: () => null };
+    const queryElements = () => [{ textContent: 'raw' }];
+    assert.deepEqual(getRawExport(element, queryElements), {
+        content: 'raw',
+        filename: 'export.txt',
+        mime: 'text/plain;charset=utf-8'
+    });
+    assert.throws(() => getRawExport(element, () => []), /exactly one source/);
+    assert.throws(() => getRawExport(element, () => [{}, {}]), /exactly one source/);
+});
+
+test('raw export strips directories from the download filename', () => {
+    const element = { getAttribute: name => name === 'export-filename' ? '../code.js' : null };
+    assert.equal(getRawExport(element, () => [{ textContent: 'code' }]).filename, 'code.js');
+});
 
 function fixture(send = async data => ({ object: data.object })) {
     const calls = [], downloads = [];
