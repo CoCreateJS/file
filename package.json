@@ -37,7 +37,7 @@
       "schemaVersion": 1,
       "summary": "A versatile, configurable headless file uploader supporting local and server operations. Accessible via a JavaScript API and HTML5 attributes, it provides seamless file reading, writing, and uploading with fallbacks to the standard HTML5 file input API. Ideal for developers needing robust file management in headless environments.",
       "client": {
-        "source": "src/client.js",
+        "source": "src/client/index.js",
         "declarative": {
           "selectors": [
             "[type=\"file\"]",
@@ -154,7 +154,7 @@
         }
       },
       "server": {
-        "source": "src/server.js",
+        "source": "src/server/index.js",
         "api": {
           "exports": [
             "default",
@@ -187,21 +187,21 @@
     "url": "https://github.com/sponsors/CoCreate-app"
   },
   "type": "module",
-  "main": "./src/server.js",
-  "browser": "./src/client.js",
+  "main": "./src/server/index.js",
+  "browser": "./src/client/index.js",
   "exports": {
     ".": {
-      "node": "./src/server.js",
-      "deno": "./src/server.js",
-      "browser": "./src/client.js",
-      "default": "./src/server.js"
+      "node": "./src/server/index.js",
+      "deno": "./src/server/index.js",
+      "browser": "./src/client/index.js",
+      "default": "./src/server/index.js"
     }
   },
   "dependencies": {
     "@cocreate/actions": "^1.24.0",
     "@cocreate/config": "^1.21.0",
     "@cocreate/render": "^1.51.0",
-    "@cocreate/utils": "^1.54.0"
+    "@cocreate/utils": "^1.57.0"
   },
   "devDependencies": {
     "@cocreate/webpack": "^1.9.0"

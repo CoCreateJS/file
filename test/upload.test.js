@@ -3,7 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import file from '../src/server.js';
+import file from '../src/server/index.js';
 import Config from '@cocreate/config';
 import crud from '@cocreate/crud-client';
 
@@ -99,3 +99,67 @@ test('stalled request stays quiet while awaiting confirmation', async (t) => {
     await pending;
     assert.deepEqual(f.exits, [0]);
 });
+
+function contentFixture(t, name, content) {
+    const f = fixture(t);
+    fs.rmSync(path.join(f.directory, 'src', 'example.txt'));
+    fs.writeFileSync(path.join(f.directory, 'src', name), content);
+    f.config.directories[0].object = {
+        name: '{{name}}', src: '{{source}}', mirror: '{{source}}',
+        pathname: '{{pathname}}', directory: '{{directory}}', path: '{{path}}',
+        'content-type': '{{content-type}}'
+    };
+    return f;
+}
+
+for (const [name, content, contentType, encoded] of [
+    ['notes.txt', Buffer.from('\ufeffcafé 🌍 $& $` $\' $$'), 'text/plain', false],
+    ['module.mjs', Buffer.from('export default { value: "$&" };'), 'text/javascript', false],
+    ['image.png', Buffer.from([0, 255, 254, 1]), 'image/png', true],
+    ['image.PNG', Buffer.from([0, 255, 254, 1]), 'image/png', true],
+    ['icon.svg', Buffer.from('<svg>café</svg>'), 'image/svg+xml', true],
+    ['font.WOFF2', Buffer.from([0, 255, 128, 1]), 'font/woff2', true],
+    ['notes.custom', Buffer.from('unchanged text'), '', false]
+]) {
+    test(`uploader prepares ${name} using shared MIME and content helpers`, async t => {
+        const f = contentFixture(t, name, content);
+        await file(f.config, f.configPath, f.directory);
+        assert.equal(f.requests.mock.callCount(), 1);
+        const request = f.requests.mock.calls[0].arguments[0];
+        const expected = encoded ? `data:${contentType};base64,${content.toString('base64')}` : content.toString('utf8');
+        assert.equal(request.object.src, expected);
+        assert.equal(request.object.mirror, expected);
+        assert.equal(request.object['content-type'], contentType);
+        assert.equal(request.object.name, name);
+        assert.equal(request.object.pathname, `/src/${name}`);
+        assert.equal(request.method, 'object.update');
+        assert.equal(request.upsert, true);
+        assert.deepEqual(f.exits, [0]);
+    });
+}
+
+test('uploader resolves a symlink while retaining the uploaded filename MIME type', async t => {
+    const content = Buffer.from([0, 255, 254, 1]);
+    const f = contentFixture(t, 'image.png', content);
+    const link = path.join(f.directory, 'src', 'image.png');
+    const target = path.join(f.directory, 'target.bin');
+    fs.rmSync(link);
+    fs.writeFileSync(target, content);
+    fs.symlinkSync(target, link);
+    await file(f.config, f.configPath, link);
+    const request = f.requests.mock.calls[0].arguments[0];
+    assert.equal(request.object.src, 'data:image/png;base64,AP/+AQ==');
+    assert.equal(request.object['content-type'], 'image/png');
+    assert.deepEqual(f.exits, [0]);
+});
+
+for (const name of ['records.json', 'records.JSON']) {
+    test(`dataset upload parses ${name} through the shared MIME lookup`, async t => {
+        const data = { name: 'example', count: 3 };
+        const f = contentFixture(t, name, JSON.stringify(data));
+        f.config.directories[0].object = '{{source}}';
+        await file(f.config, f.configPath, f.directory);
+        assert.deepEqual(f.requests.mock.calls[0].arguments[0].object, data);
+        assert.deepEqual(f.exits, [0]);
+    });
+}

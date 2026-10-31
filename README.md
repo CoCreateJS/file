@@ -44,6 +44,22 @@ $ npm i @cocreate/file
 $ yarn install @cocreate/file
 ```
 
+## Source structure
+
+```text
+src/
+  client/
+    index.js
+    csv.js
+    transfer.js
+  server/
+    index.js
+    replaceTemplateVariable.js
+```
+
+Package imports resolve to `src/client/index.js` in browser builds and
+`src/server/index.js` in Node. Webpack builds the client entry.
+
 # Table of Contents
 
 -   [Table of Contents](#table-of-contents)

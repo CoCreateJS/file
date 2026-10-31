@@ -1,4 +1,5 @@
 import crud from "@cocreate/crud-client";
+import { encodeContent, decodeContent, getContentType } from "@cocreate/utils/file";
 import Config from "@cocreate/config";
 import fs from "fs";
 import path from "path";
@@ -6,82 +7,6 @@ import { pathToFileURL } from "url";
 import { replaceTemplateVariable } from "./replaceTemplateVariable.js";
 
 const realpathAsync = fs.promises.realpath;
-
-const mimeTypes = {
-    ".aac": "audio/aac",
-    ".abw": "application/x-abiword",
-    ".arc": "application/x-freearc",
-    ".avi": "video/x-msvideo",
-    ".azw": "application/vnd.amazon.ebook",
-    ".bin": "application/octet-stream",
-    ".bmp": "image/bmp",
-    ".bz": "application/x-bzip",
-    ".bz2": "application/x-bzip2",
-    ".csh": "application/x-csh",
-    ".css": "text/css",
-    ".csv": "text/csv",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".eot": "application/vnd.ms-fontobject",
-    ".epub": "application/epub+zip",
-    ".gif": "image/gif",
-    ".htm": "text/html",
-    ".html": "text/html",
-    ".ico": "image/x-icon",
-    ".ics": "text/calendar",
-    ".jar": "application/java-archive",
-    ".jpeg": "image/jpeg",
-    ".jpg": "image/jpeg",
-    ".js": "text/javascript",
-    ".json": "application/json",
-    ".jsonld": "application/ld+json",
-    ".mid": "audio/midi",
-    ".midi": "audio/midi",
-    ".mjs": "text/javascript",
-    ".mp3": "audio/mpeg",
-    ".mp4": "video/mp4",
-    ".mpeg": "video/mpeg",
-    ".mpkg": "application/vnd.apple.installer+xml",
-    ".odp": "application/vnd.oasis.opendocument.presentation",
-    ".ods": "application/vnd.oasis.opendocument.spreadsheet",
-    ".odt": "application/vnd.oasis.opendocument.text",
-    ".oga": "audio/ogg",
-    ".ogv": "video/ogg",
-    ".ogx": "application/ogg",
-    ".otf": "font/otf",
-    ".png": "image/png",
-    ".pdf": "application/pdf",
-    ".ppt": "application/vnd.ms-powerpoint",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ".rar": "application/x-rar-compressed",
-    ".rtf": "application/rtf",
-    ".sh": "application/x-sh",
-    ".svg": "image/svg+xml",
-    ".swf": "application/x-shockwave-flash",
-    ".tar": "application/x-tar",
-    ".tif": "image/tiff",
-    ".tiff": "image/tiff",
-    ".ts": "video/mp2t",
-    ".ttf": "font/ttf",
-    ".txt": "text/plain",
-    ".vsd": "application/vnd.visio",
-    ".wav": "audio/wav",
-    ".weba": "audio/webm",
-    ".webm": "video/webm",
-    ".webmanifest": "application/manifest+json",
-    ".webp": "image/webp",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".xhtml": "application/xhtml+xml",
-    ".xls": "application/vnd.ms-excel",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".xml": "application/xml",
-    ".xul": "application/vnd.mozilla.xul+xml",
-    ".zip": "application/zip",
-    ".3gp": "video/3gpp",
-    ".3g2": "video/3gpp2",
-    ".7z": "application/x-7z-compressed"
-};
 
 /**
  * Safely dynamic-imports a JavaScript module with a fallback timeout
@@ -221,51 +146,20 @@ async function writeFiles(objects, configPath, destination) {
             let content = src;
             if (!content && obj.content) content = obj.content;
 
-            if (content && typeof content === 'object' && content.type === 'Buffer' && Array.isArray(content.data)) {
-                const buf = Buffer.from(content.data);
-                await fs.promises.writeFile(targetPath, buf);
-                downloaded.push(targetPath);
-                continue;
+            let decoded;
+            try {
+                const dataURL = typeof content === "string" && content.startsWith("data:");
+                decoded = await decodeContent({
+                    value: typeof content === "object" ? content : String(content || ""),
+                    encoding: dataURL ? "auto" : "utf8",
+                    format: dataURL && !/;base64,/i.test(content) ? "text" : "bytes",
+                    fatal: true
+                });
+            } catch {
+                // Preserve the existing fallback for malformed data URLs/objects.
+                decoded = decodeContent({ value: String(content || ""), encoding: "utf8", format: "bytes" });
             }
-
-            if (content && typeof content === 'object' && Array.isArray(content.data)) {
-                try {
-                    const buf = Buffer.from(content.data);
-                    await fs.promises.writeFile(targetPath, buf);
-                    downloaded.push(targetPath);
-                    continue;
-                } catch (err) {}
-            }
-
-            if (typeof content === 'string' && content.startsWith('data:')) {
-                const base64Index = content.indexOf('base64,');
-                if (base64Index > -1) {
-                    const b64 = content.slice(base64Index + 7);
-                    const buf = Buffer.from(b64, 'base64');
-                    await fs.promises.writeFile(targetPath, buf);
-                    downloaded.push(targetPath);
-                    continue;
-                } else {
-                    const comma = content.indexOf(',');
-                    if (comma > -1) {
-                        const dataPart = content.slice(comma + 1);
-                        try {
-                            const decoded = decodeURIComponent(dataPart);
-                            await fs.promises.writeFile(targetPath, decoded, 'utf8');
-                            downloaded.push(targetPath);
-                            continue;
-                        } catch (err) {}
-                    }
-                }
-            }
-
-            if (Buffer.isBuffer(content)) {
-                await fs.promises.writeFile(targetPath, content);
-                downloaded.push(targetPath);
-                continue;
-            }
-
-            await fs.promises.writeFile(targetPath, String(content || ''), 'utf8');
+            await fs.promises.writeFile(targetPath, decoded);
             downloaded.push(targetPath);
         } catch (err) {
             console.error('Failed to write object', obj && obj._id, err);
@@ -383,8 +277,7 @@ export default async function file(
             let name = file;
             let source = "";
 
-            const fileExtension = path.extname(file);
-            let mimeType = mimeTypes[fileExtension];
+            let mimeType = getContentType({ pathname: file, fallback: "" });
 
             if (!directoryName) {
                 if (directory.object && directory.object.directory) {
@@ -416,7 +309,7 @@ export default async function file(
 
             let values = {
                 "{{name}}": name || "",
-                "{{source}}": Buffer.isBuffer(source) ? `data:${mimeType};base64,${source.toString('base64')}` : source || "",
+                "{{source}}": Buffer.isBuffer(source) ? encodeContent({ value: source, contentType: mimeType, format: "data-url" }) : source || "",
                 "{{directory}}": directoryName || "",
                 "{{path}}": Path || "",
                 "{{pathname}}": pathname,
@@ -489,7 +382,7 @@ export default async function file(
                 ) {
                     try {
                         const translations = await options.translate(
-                            Buffer.isBuffer(source) ? source.toString('utf-8') : source,
+                            Buffer.isBuffer(source) ? decodeContent({ value: source, format: "text" }) : source,
                             directory.languages
                         );
                         data.object.translations = translations;
@@ -511,7 +404,7 @@ export default async function file(
                             for (let variable of variables) {
                                 let replacement = values[variable];
                                 if (key === 'src' && variable === '{{source}}' && Buffer.isBuffer(source)) {
-                                    replacement = `data:${mimeType};base64,${source.toString('base64')}`;
+                                    replacement = encodeContent({ value: source, contentType: mimeType, format: "data-url" });
                                 }
                                 data.object[key] = replaceTemplateVariable(
                                     data.object[key],
@@ -568,7 +461,7 @@ export default async function file(
         if (needsBase64) {
             return fileBuffer;
         } else {
-            return fileBuffer.toString('utf8');
+            return decodeContent({ value: fileBuffer, format: "text" });
         }
     }
 
@@ -579,7 +472,7 @@ export default async function file(
         }
 
         try {
-            const fileMimeType = mimeTypes[path.extname(resolvedPath)] || "text/plain";
+            const fileMimeType = getContentType({ pathname: resolvedPath, fallback: "text/plain" });
             if (fileMimeType === "application/json") {
                 const text = await fs.promises.readFile(resolvedPath, "utf8");
                 return JSON.parse(text);
@@ -656,7 +549,7 @@ export default async function file(
 
         let content;
         try {
-            const fileMimeType = mimeTypes[path.extname(entry)] || "text/plain";
+            const fileMimeType = getContentType({ pathname: entry, fallback: "text/plain" });
 
             if (fileMimeType === "application/json") {
                 content = JSON.parse(await fs.promises.readFile(filePath, "utf8"));

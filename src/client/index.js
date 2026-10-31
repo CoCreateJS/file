@@ -31,6 +31,7 @@ import Elements from "@cocreate/elements";
 import Actions from "@cocreate/actions";
 import { render } from "@cocreate/render";
 import { queryElements } from "@cocreate/utils";
+import { encodeContent, decodeContent, getContentType } from "@cocreate/utils/file";
 import { setValue } from "@cocreate/element-prototype";
 
 const inputs = new Map();
@@ -654,42 +655,32 @@ async function getCustomData(file) {
 }
 
 // This function reads the file and returns its src
-function readFile(file, readAs) {
-	return new Promise((resolve) => {
-		const fileType = file.type.split("/");
+async function readFile(file, readAs) {
+    const fileType = getContentType({ contentType: file.type, fallback: "" }).split("/");
+    if (fileType[1] === "directory" || readAs === "blob") return file;
 
-		if (fileType[1] === "directory") {
-			return resolve(file);
-		} else if (readAs) {
-			if (readAs === "blob") return resolve(file);
-		} else if (fileType[0] === "image") {
-			readAs = "readAsDataURL";
-		} else if (fileType[0] === "video") {
-			readAs = "readAsDataURL";
-		} else if (fileType[0] === "audio") {
-			readAs = "readAsDataURL";
-		} else if (fileType[1] === "pdf") {
-			readAs = "readAsDataURL";
-		} else if (
-			["doc", "msword", "docx", "xlsx", "pptx"].includes(fileType[1])
-		) {
-			readAs = "readAsBinaryString";
-		} else {
-			readAs = "readAsText";
-		}
+    if (!readAs) {
+        if (["image", "video", "audio"].includes(fileType[0]) || fileType[1] === "pdf") {
+            readAs = "readAsDataURL";
+        } else if (["doc", "msword", "docx", "xlsx", "pptx"].includes(fileType[1])) {
+            readAs = "readAsBinaryString";
+        } else {
+            readAs = "readAsText";
+        }
+    }
 
-		const reader = new FileReader();
-		reader[readAs](file);
-
-		reader.onload = () => {
-			file.src = reader.result;
-			if (["doc", "msword", "docx", "xlsx", "pptx"].includes(fileType)) {
-				file.src = btoa(file.src);
-			}
-
-			resolve(file);
-		};
-	});
+    if (readAs === "readAsDataURL") {
+        file.src = await encodeContent({ value: file, contentType: file.type || "application/octet-stream", format: "data-url" });
+    } else {
+        const format = {
+            readAsText: "text",
+            readAsBinaryString: "binary",
+            readAsArrayBuffer: "arraybuffer"
+        }[readAs];
+        if (!format) throw new TypeError(`Unsupported file read mode: ${readAs}`);
+        file.src = await decodeContent({ value: file, format, charset: "auto" });
+    }
+    return file;
 }
 
 function setFiles(element, files) {

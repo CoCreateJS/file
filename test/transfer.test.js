@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTransfer, getRawExport } from '../src/transfer.js';
+import { createTransfer, getRawExport } from '../src/client/transfer.js';
 
 test('raw export reads one source as unchanged text with filename and MIME attributes', () => {
     const source = { textContent: '<h1>hello</h1>\n' };
