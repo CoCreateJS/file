@@ -1,14 +1,14 @@
 # Contributing to CoCreate-file
 
-This project is work of [many contributors](https://github.com/CoCreate-app/CoCreate-file/graphs/contributors).
-You're encouraged to submit [pull requests](https://github.com/CoCreate-app/CoCreate-file/pulls),
-[propose features and discuss issues](https://github.com/CoCreate-app/CoCreate-file/issues).
+This project is work of [many contributors](https://github.com/CoCreateJS/CoCreate-file/graphs/contributors).
+You're encouraged to submit [pull requests](https://github.com/CoCreateJS/CoCreate-file/pulls),
+[propose features and discuss issues](https://github.com/CoCreateJS/CoCreate-file/issues).
 
 In the examples below, substitute your Github username for `contributor` in URLs.
 
 ## Fork the Project
 
-Fork the [project on Github](https://github.com/CoCreate-app/CoCreate-file) and check out your copy.
+Fork the [project on Github](https://github.com/CoCreateJS/CoCreate-file) and check out your copy.
 
 ```
 git clone https://github.com/contributor/CoCreate-file.git
@@ -70,7 +70,7 @@ git push origin my-feature-branch
 
 ## Make a Pull Request
 
-Go to [https://github.com/CoCreate-app/CoCreate-file](https://github.com/CoCreate-app/CoCreate-file) and select your feature branch.
+Go to [https://github.com/CoCreateJS/CoCreate-file](https://github.com/CoCreateJS/CoCreate-file) and select your feature branch.
 Click the 'Pull Request' button and fill out the form. Pull requests are usually reviewed within a few days.
 
 ## Rebase
@@ -88,7 +88,7 @@ git push origin my-feature-branch -f
 Update the [CHANGELOG](CHANGELOG.md) with the pull request number. A typical entry looks as follows.
 
 ```
-* [#123](https://github.com/CoCreate-app/CoCreate-industry/pull/123): Reticulated splines - [@contributor](https://github.com/contributor).
+* [#123](https://github.com/CoCreateJS/CoCreate-industry/pull/123): Reticulated splines - [@contributor](https://github.com/contributor).
 ```
 
 Amend your previous commit and force push the changes.
