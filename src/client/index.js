@@ -34,6 +34,11 @@ import { queryElements } from "@cocreate/utils";
 import { encodeContent, decodeContent, getContentType } from "@cocreate/utils/file";
 import { setValue } from "@cocreate/element-prototype";
 
+/**
+ *
+ * @public
+ * @environment client
+ */
 const inputs = new Map();
 const Files = new Map();
 const dropTargets = new WeakMap();
@@ -52,6 +57,8 @@ const fileForControllers = new WeakMap();
  *      - If null or omitted, the function queries and initializes all elements in the document with type="file".
  *      - If a single element is provided, it initializes that element (assuming it is of type "file").
  *      - If an array of elements is provided, each element in the array is initialized.
+ * @private
+ * @environment client
  */
 async function init(elements) {
 	if (!elements) elements = document.querySelectorAll('[type="file"]');
@@ -604,6 +611,11 @@ async function getFileId(file) {
 	}
 }
 
+/**
+ *
+ * @public
+ * @environment client
+ */
 async function getFiles(fileInputs, readAs) {
 	const files = [];
 
@@ -1222,12 +1234,22 @@ async function fileRenderAction(action) {
 	);
 }
 
+/**
+ *
+ * @public
+ * @environment client
+ */
 function remove(file) {
 	if (!file?.input || !file.id) return;
 	inputs.get(file.input)?.delete(file.id);
 	Files.delete(file.id);
 }
 
+/**
+ *
+ * @public
+ * @environment client
+ */
 async function create(directory, type, name, src = "") {
 	try {
 		if (directory.handle && directory.input) {
@@ -1281,6 +1303,11 @@ async function create(directory, type, name, src = "") {
 	}
 }
 
+/**
+ *
+ * @public
+ * @environment client
+ */
 async function Delete(file) {
 	try {
 		if (file.handle) {
@@ -1400,3 +1427,283 @@ Actions.init([
 init();
 
 export default { inputs, getFiles, create, Delete, remove };
+
+/**
+ *
+ * @name accept
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name capture
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name controls
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name data-export-key
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name data-export-label
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name directory
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name eid
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name export-filename
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name export-format
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name export-mime
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name file
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name file-capture
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name file-drop-active
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name file-dropzone
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name file_id
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name filter-query-key
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name filter-query-value
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name for
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name hidden
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name id
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name import
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name key
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name multiple
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name object
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name path
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name realtime
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name render
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name render-clone
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name render-query
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name type
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name url
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ *
+ * @name value
+ * @kind member
+ * @attribute
+ * @environment client
+ */
+
+/**
+ * A versatile, configurable headless file uploader supporting local and server operations. Accessible via a JavaScript API and HTML5 attributes, it provides seamless file reading, writing, and uploading with fallbacks to the standard HTML5 file input API. Ideal for developers needing robust file management in headless environments.
+ *
+ * @module file
+ * @environment client
+ */
+
+/**
+ * Declarative selectors recognized by this module.
+ *
+ * @name declarative-selectors
+ * @kind member
+ * @selectors
+ * @environment client
+ * @example
+ * ```json
+ * [
+ *   "[type=\"file\"]",
+ *   "[${fileForAttribute}]",
+ *   "[file-select]"
+ * ]
+ * ```
+ */

@@ -11,6 +11,8 @@ const realpathAsync = fs.promises.realpath;
 /**
  * Safely dynamic-imports a JavaScript module with a fallback timeout
  * to prevent top-level execution stalls from hanging the uploader loop.
+ * @private
+ * @environment server
  */
 async function safeImport(filePath, timeoutMs = 5000) {
     const fileUrl = pathToFileURL(filePath).href;
@@ -627,6 +629,11 @@ export default async function file(
     }
 }
 
+/**
+ *
+ * @public
+ * @environment server
+ */
 export async function download(CoCreateConfig, configPath, match, options) {
     let config;
     try {
@@ -713,6 +720,11 @@ export async function download(CoCreateConfig, configPath, match, options) {
     return downloaded;
 }
 
+/**
+ *
+ * @public
+ * @environment server
+ */
 export async function deleteFiles(CoCreateConfig, configPath, match, options) {
     let config;
     try {
@@ -765,3 +777,18 @@ export async function deleteFiles(CoCreateConfig, configPath, match, options) {
     }
     return response;
 }
+
+/**
+ *
+ * @name default
+ * @kind member
+ * @public
+ * @environment server
+ */
+
+/**
+ * A versatile, configurable headless file uploader supporting local and server operations. Accessible via a JavaScript API and HTML5 attributes, it provides seamless file reading, writing, and uploading with fallbacks to the standard HTML5 file input API. Ideal for developers needing robust file management in headless environments.
+ *
+ * @module file
+ * @environment server
+ */
