@@ -1,7 +1,7 @@
 {
   "name": "@cocreate/file",
   "version": "1.27.0",
-  "description": "A versatile, configurable headless file uploader supporting local and server operations. Accessible via a JavaScript API and HTML5 attributes, it provides seamless file reading, writing, and uploading with fallbacks to the standard HTML5 file input API. Ideal for developers needing robust file management in headless environments.",
+  "description": "File APIs for the browser, Node.js file synchronization, and server-side file delivery.",
   "keywords": [
     "file-uploader",
     "headless",
@@ -37,12 +37,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cocreatejs/CoCreate-file.git"
+    "url": "git+https://github.com/CoCreateJS/file.git"
   },
   "author": "CoCreate LLC",
   "license": "AGPL-3.0",
   "bugs": {
-    "url": "https://github.com/CoCreateJS/CoCreate-file/issues"
+    "url": "https://github.com/CoCreateJS/file/issues"
   },
   "homepage": "https://CoCreateJS.com/docs/file",
   "funding": {
@@ -58,12 +58,17 @@
       "deno": "./src/server/index.js",
       "browser": "./src/client/index.js",
       "default": "./src/server/index.js"
-    }
+    },
+    "./node": "./src/client/node/index.js",
+    "./browser": "./src/client/index.js",
+    "./server": "./src/server/index.js"
   },
   "dependencies": {
     "@cocreate/actions": "^1.24.0",
     "@cocreate/config": "^1.21.0",
+    "@cocreate/crud-client": "^1.39.0",
     "@cocreate/render": "^1.51.0",
+    "@cocreate/sitemap": "^1.12.0",
     "@cocreate/utils": "^1.57.0"
   },
   "devDependencies": {

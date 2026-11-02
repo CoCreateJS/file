@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { toCSV } from '../src/client/csv.js';
+import { toCSV } from '../../src/client/csv.js';
 
 test('CSV uses column labels and order, ignoring unlisted fields', () => {
     assert.equal(toCSV([{ name: 'A', enabled: false, secret: 'not exported' }], [

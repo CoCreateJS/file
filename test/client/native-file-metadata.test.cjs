@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const source=fs.readFileSync(require.resolve('../src/client/index.js'),'utf8');
+const source=fs.readFileSync(require.resolve('../../src/client/index.js'),'utf8');
 test('accept values convert to content-type filter expressions',()=>{
  const acceptToFilterValue=vm.runInNewContext('('+source.slice(source.indexOf('function acceptToFilterValue('),source.indexOf('\nfunction applyFileFor'))+')');
  assert.equal(acceptToFilterValue('image/*'),'^image/');

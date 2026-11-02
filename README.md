@@ -1,6 +1,6 @@
 # CoCreate-file
 
-CoCreate-file is an advanced, configurable headless file uploader designed for comprehensive file management capabilities without a traditional user interface. Accessible via a JavaScript API and HTML5 attributes, it offers unparalleled flexibility in handling file operations on both local and server environments. Take it for a spin in our [playground!](https://CoCreateJS.com/docs/file)
+CoCreate-file provides browser file APIs, Node.js file synchronization, and server-side file delivery. Take it for a spin in our [playground!](https://CoCreateJS.com/docs/file)
 
 ![minified](https://img.badgesize.io/https://cdn.CoCreateJS.com/file/latest/CoCreate-file.min.js?style=flat-square&label=minified&color=orange)
 ![gzip](https://img.badgesize.io/https://cdn.CoCreateJS.com/file/latest/CoCreate-file.min.js?compression=gzip&style=flat-square&label=gzip&color=yellow)
@@ -52,18 +52,34 @@ src/
     index.js
     csv.js
     transfer.js
+    node/
+      index.js
+      replaceTemplateVariable.js
   server/
     index.js
-    replaceTemplateVariable.js
+    cachePolicy.js
 ```
 
-Package imports resolve to `src/client/index.js` in browser builds and
-`src/server/index.js` in Node. Webpack builds the client entry.
+The package root resolves to `src/client/index.js` in browser builds and
+`src/server/index.js` in Node. The CLI sync API is available from
+`@cocreate/file/node`. Webpack builds the browser client entry.
+
+## Server
+
+The server entry serves organization files over HTTP. It is initialized with
+the CoCreate server instance and exposes `send` and `resolveFile`:
+
+```js
+import FileServer from "@cocreate/file/server";
+
+const files = await FileServer.init(server);
+```
 
 # Table of Contents
 
 -   [Table of Contents](#table-of-contents)
 -   [Announcements](#announcements)
+-   [Server](#server)
 -   [Roadmap](#roadmap)
 -   [How to Contribute](#how-to-contribute)
 -   [About](#about)

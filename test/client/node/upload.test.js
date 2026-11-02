@@ -3,7 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import file from '../src/server/index.js';
+import file from '../../../src/client/node/index.js';
 import Config from '@cocreate/config';
 import crud from '@cocreate/crud-client';
 
