@@ -1,3 +1,15 @@
+# [2.0.0](https://github.com/CoCreateJS/file/compare/v1.23.0...v2.0.0) (2026-11-02)
+
+
+### chore
+
+* record package identity migration as breaking ([6334c6a](https://github.com/CoCreateJS/file/commit/6334c6afa13c2cfb638bbd9330f39bcbb52ab6ff))
+
+
+### BREAKING CHANGES
+
+* Consumers must install @cocreate/file and use the renamed CoCreateJS repository identity; the previous package and repository identities are no longer supported.
+
 # [1.23.0](https://github.com/CoCreateJS/file/compare/v1.22.2...v1.23.0) (2026-11-02)
 
 
