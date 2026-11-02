@@ -1,3 +1,32 @@
+# [1.23.0](https://github.com/CoCreateJS/file/compare/v1.22.2...v1.23.0) (2026-11-02)
+
+
+### Bug Fixes
+
+* add Deno specific entries to .gitignore ([5d1d0a3](https://github.com/CoCreateJS/file/commit/5d1d0a3e12d38a9ff4f755531f835d198be54ff8))
+* bump [@cocreate](https://github.com/cocreate) dependencies ([5781a0e](https://github.com/CoCreateJS/file/commit/5781a0e7bc7359c5d5373f159b1c5068d9134da5))
+* bump [@cocreate](https://github.com/cocreate) package versions ([9605c57](https://github.com/CoCreateJS/file/commit/9605c57951e7465cb3a9cd32fbe725caadf4278a))
+* bump versions ([6265e67](https://github.com/CoCreateJS/file/commit/6265e677d4b9fb0b51b72e01cc3005444b70130c))
+* bump versions ([22e1c89](https://github.com/CoCreateJS/file/commit/22e1c89a05a365f236fc39ae869cde6f814b3cce))
+* preserve file template replacement content ([2af131a](https://github.com/CoCreateJS/file/commit/2af131a2adf2f2c1681aed3491af3a561679482e))
+* remove redundant option check in file function ([f6d1753](https://github.com/CoCreateJS/file/commit/f6d175367261fb4386064da47bf85f75509f96cc))
+* remove trailing slash from node_modules entry in .gitignore ([fc3d092](https://github.com/CoCreateJS/file/commit/fc3d092489442e4dc1682cfb4128514453fcb59a))
+* replace legacy $filter field with filter ([42f4232](https://github.com/CoCreateJS/file/commit/42f4232c07c76e9c2d264e21b26a3b0a99967c15))
+* update Config method to request for loading configuration ([94502cd](https://github.com/CoCreateJS/file/commit/94502cda1847413fba8ca06b63240ebe0cd6db4c))
+* update git url ([1175acb](https://github.com/CoCreateJS/file/commit/1175acbad01ade96ea074266fe06dc7967acf620))
+* update GitHub Actions to use latest versions and sync package.json description ([dc48228](https://github.com/CoCreateJS/file/commit/dc48228690288b25547bcde2569ad48c14974813))
+* update loadConfig to use prompt method for user input ([f802714](https://github.com/CoCreateJS/file/commit/f802714baea0607fce88aea744f533924f3065e9))
+
+
+### Features
+
+* enhance safeImport with timeout handling and improve resource cleanup in file function ([4e501f6](https://github.com/CoCreateJS/file/commit/4e501f621219f6cccac5c3fa93fb8d248dc6bbbe))
+* implement safe dynamic import with timeout and refactor file writing to use promises ([9717cbd](https://github.com/CoCreateJS/file/commit/9717cbdddcfb53801d110f2c3592748cdf027557))
+* replace uuid import and usage with utils ([7b8a0a9](https://github.com/CoCreateJS/file/commit/7b8a0a9b90c198302b3fd7bb9fb652d862f0ea56))
+* support delegated file controls and drop zones ([19208de](https://github.com/CoCreateJS/file/commit/19208de116db90b872cf24d24cfa92e5b3590459))
+* support raw file export ([92cb5f7](https://github.com/CoCreateJS/file/commit/92cb5f772e07ca3ce359ab42608fd3401092fe31))
+* support recursive streamed downloads ([13ecb26](https://github.com/CoCreateJS/file/commit/13ecb264228785a634fe3ec79d5c79df07a1d20e))
+
 ## [1.22.2](https://github.com/CoCreateJS/CoCreate-file/compare/v1.22.1...v1.22.2) (2026-07-19)
 
 
