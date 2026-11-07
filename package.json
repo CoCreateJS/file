@@ -1,6 +1,6 @@
 {
   "name": "@cocreate/file",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "File APIs for the browser, Node.js file synchronization, and server-side file delivery.",
   "keywords": [
     "file-uploader",
