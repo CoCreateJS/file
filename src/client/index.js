@@ -26,7 +26,7 @@ import { toCSV } from "./csv.js";
 import { createTransfer, getRawExport } from "./transfer.js";
 
 import Observer from "@cocreate/observer";
-import Crud from "@cocreate/crud-client";
+import { crudClient as Crud } from '@cocreate/crud/client';
 import Elements from "@cocreate/elements";
 import Actions from "@cocreate/actions";
 import { render } from "@cocreate/render";

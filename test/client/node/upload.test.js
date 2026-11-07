@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import file from '../../../src/client/node/index.js';
 import Config from '@cocreate/config';
-import crud from '@cocreate/crud-client';
+import { crudClient as crud } from '@cocreate/crud/client';
 
 function fixture(t, send = async (data) => ({ object: [data.object] })) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coc-upload-test-'));

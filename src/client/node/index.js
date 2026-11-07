@@ -1,4 +1,4 @@
-import crud from "@cocreate/crud-client";
+import { crudClient as crud } from '@cocreate/crud/client';
 import { encodeContent, decodeContent, getContentType } from "@cocreate/utils/file";
 import Config from "@cocreate/config";
 import fs from "fs";
